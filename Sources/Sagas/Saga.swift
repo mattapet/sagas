@@ -1,3 +1,5 @@
+import Basic
+
 fileprivate var id: Int = 0
 
 public enum SagaState {
@@ -17,7 +19,16 @@ public struct SagaContext<KeyType: Hashable> {
 }
 
 public class Saga<KeyType: Hashable> {
-  public var ctx: SagaContext<KeyType>
+  private let mutex = PThreadMutex()
+  private var _ctxSynchronized: SagaContext<KeyType>
+  public var ctx: SagaContext<KeyType> {
+    get {
+      return _ctxSynchronized
+    }
+    set {
+      mutex.sync(execute: { _ctxSynchronized = newValue })
+    }
+  }
   public let name: String
   public let reqSucc: [KeyType:[KeyType]]
   public let compSucc: [KeyType:[KeyType]]
@@ -28,7 +39,7 @@ public class Saga<KeyType: Hashable> {
     reqSucc: [KeyType:[KeyType]],
     compSucc: [KeyType:[KeyType]]
   ) {
-    self.ctx = ctx
+    self._ctxSynchronized = ctx
     self.name = name
     self.reqSucc = reqSucc
     self.compSucc = compSucc
@@ -36,7 +47,7 @@ public class Saga<KeyType: Hashable> {
 
   public init(definition: SagaDefinition<KeyType>) {
     defer { id += 1}
-    self.ctx = SagaContext(id: "\(id)")
+    self._ctxSynchronized = SagaContext(id: "\(id)")
     self.name = definition.name
     self.reqSucc = definition.requestSuccessors
     self.compSucc = definition.compensatingSuccessors
@@ -87,7 +98,7 @@ extension SagaDefinition {
     let successors: [KeyType:Set<KeyType>] = requests
       .reduce(into: [:]) { result, next in
         next.dependencies.forEach {
-          result[next.compensation, default: []].insert($0)
+          result[next.key, default: []].insert($0)
         }
       }
     return successors.mapValues(Array.init)

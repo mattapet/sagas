@@ -12,11 +12,12 @@ enum TaskError: Error {
 
 struct Task: Sagas.Task {
   func execute(
-    using payload: Data,
-    with completion: (Result<Data, Error>) -> Void
+    using payload: Data?,
+    with completion: (Result<Data?, Error>) -> Void
   ) {
-    print("Executing \(String(data: payload, encoding: .utf8) ?? "unknown")")
-    if Int.random(in: 0..<10) < 5 {
+    usleep(1000000)
+    print("Executing")
+    if Int.random(in: 0..<10) < 7 {
       completion(.success(Data()))
     } else {
       completion(.failure(TaskError.randomTest))
@@ -26,10 +27,11 @@ struct Task: Sagas.Task {
 
 struct CompensatingTask: Sagas.Task {
   func execute(
-    using payload: Data,
-    with completion: (Result<Data, Error>) -> Void
+    using payload: Data?,
+    with completion: (Result<Data?, Error>) -> Void
   ) {
-    print("Compensating \(String(data: payload, encoding: .utf8) ?? "unknown")")
+    usleep(1000000)
+    print("Compensating")
     if Int.random(in: 0..<10) < 8 {
       completion(.success(Data()))
     } else {
@@ -60,4 +62,17 @@ let saga = SagaDefinition<ActionType>(
 struct CustomLogger: Logger { }
 
 let executor = Executor<ActionType>(logger: CustomLogger())
-executor.register(saga)
+executor.register(saga) {
+  print("DONE 1")
+}
+
+executor.register(saga) {
+  print("DONE 2")
+}
+
+executor.register(saga) {
+  print("DONE 3")
+}
+
+
+usleep(100_000_000)

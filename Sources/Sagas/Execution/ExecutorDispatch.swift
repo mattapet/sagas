@@ -2,90 +2,104 @@ import Foundation
 
 extension Executor {
   public func dispatch(_ message: Message<KeyType>) {
-    print("[DISPATCHING: \(message)]")
-    guard let saga = sagas[message.sagaId] else { return }
-    guard let step = saga.ctx.steps[message.stepKey] else { return }
-
-    switch (message.type, step.state) {
-    case (.reqStart, .`init`):
-      logger.log(message)
-      let step = step.withState(.started)
-      saga.ctx.steps[message.stepKey] = step
-      start(step, using: message.payload)
-
-    case (.reqAbort, .started):
-      logger.log(message)
-      let step = step.withState(.aborted)
-      saga.ctx.steps[message.stepKey] = step
-      abort(step)
-
-    case (.reqEnd, .started):
-      logger.log(message)
-      let step = step.withState(.done)
-      saga.ctx.steps[message.stepKey] = step
-      end(step, with: message.payload)
-
-    case (.compStart, .`init`), (.compStart, .aborted):
-      // If the request did not succeed or have not started,
-      // delegate compensation
-      print("Skipping")
-      skipCompensate(step)
-      break
-
-    case (.compStart, .done), (.compStart, .started):
-      logger.log(message)
-      compensate(step, with: message.payload)
-
-    case (.compEnd, .done), (.compEnd, .started):
-      logger.log(message)
-      endComp(step, with: message.payload)
-
-    default: fatalError("Unreachable state \(message.type):\(step.state)")
+    DispatchQueue.global().async { [weak self] in
+//      print("[DISPATCHER]: \(message.type):\(message.stepKey)")
+      guard let saga = self?.sagas[message.sagaId] else { return }
+      let ctx = saga.ctx
+      guard let step = ctx.steps[message.stepKey] else { return }
+      
+      
+      switch (ctx.state, message.type, step.state) {
+      case (.started, .reqStart, .`init`):
+        self?.logger.log(message)
+        let step = step.withState(.started)
+        saga.ctx.steps[message.stepKey] = step
+        self?.startStep(step, using: message.payload)
+        
+      case (.started, .reqAbort, .started):
+        self?.logger.log(message)
+        let step = step.withState(.aborted)
+        saga.ctx.steps[message.stepKey] = step
+        self?.abortStep(step)
+        
+      case (.started, .reqEnd, .started):
+        self?.logger.log(message)
+        let step = step.withState(.done)
+        saga.ctx.steps[message.stepKey] = step
+        self?.endStep(step, with: message.payload)
+        
+      case (.aborted, .compStart, .`init`),
+           (.aborted, .compStart, .aborted):
+        // If the request did not succeed or have not started yet,
+        // delegate compensation
+        self?.skipCompensateStep(step)
+        
+      case (.aborted, .compStart, .done),
+           (.aborted, .compStart, .started):
+        self?.logger.log(message)
+        self?.compensateStep(step, with: message.payload)
+        
+      case (.aborted, .compEnd, .done),
+           (.aborted, .compEnd, .started):
+        self?.logger.log(message)
+        let step = step.withState(.compensated)
+        saga.ctx.steps[message.stepKey] = step
+        self?.endCompensateStep(step, with: message.payload)
+        
+      default: print(
+        "Ignoring message \(ctx.state):\(message.type):\(message.stepKey)"
+        )
+      }
     }
   }
 
   func execute(
     _ task: Task,
-    using payload: Data,
-    with completion: (Result<Data, Error>) -> Void
+    using payload: Data?,
+    with completion: (Result<Data?, Error>) -> Void
   ) {
     task.execute(using: payload, with: completion)
   }
 
-  func start(_ step: Step<KeyType>, using payload: Data) {
+  func startStep(
+    _ step: Step<KeyType>,
+    using payload: Message<KeyType>.Payload?
+  ) {
     assert(step.state == .started)
     execute(step.reqTask, using: payload) { result in
       switch result {
       case .success(let response):
         dispatch(.requestEnd(step: step, payload: response))
-      case .failure(let error):
-        print(error)
-        dispatch(.requestAbort(step: step, payload: Data()))
+      case .failure:
+        dispatch(.requestAbort(step: step))
       }
     }
   }
 
-  func abort(_ step: Step<KeyType>) {
+  func abortStep(_ step: Step<KeyType>) {
     assert(step.state == .aborted)
     compensate(sagaId: step.sagaId)
   }
 
-  func end(_ step: Step<KeyType>, with payload: Data) {
+  func endStep(_ step: Step<KeyType>, with payload: Data? = nil) {
     assert(step.state == .done)
     guard let saga = sagas[step.sagaId] else { return }
+    let ctx = saga.ctx
 
     let successors = saga.reqSucc[step.key] ?? []
     // Get all dependents
     for succ in successors {
-      guard let succ = saga.ctx.steps[succ] else { continue }
+      guard let succ = ctx.steps[succ] else { continue }
+      let steps = ctx.steps
       // If all of the dependencies of successor are done
-      if succ.deps.allSatisfy({ saga.ctx.steps[$0]?.state == .done }) {
+      if succ.deps.allSatisfy({ steps[$0]?.state == .done }) {
         dispatch(.requestStart(step: succ, payload: payload))
       }
     }
+    end(sagaId: ctx.id)
   }
 
-  func compensate(_ step: Step<KeyType>, with payload: Data) {
+  func compensateStep(_ step: Step<KeyType>, with payload: Data? = nil) {
     assert(step.state == .done || step.state == .started)
     execute(step.compTask, using: payload) { result in
       switch result {
@@ -97,52 +111,32 @@ extension Executor {
     }
   }
 
-  func skipCompensate(_ step: Step<KeyType>) {
+  func skipCompensateStep(_ step: Step<KeyType>) {
     assert(step.state == .`init` || step.state == .aborted)
     guard let saga = sagas[step.sagaId] else { return }
-
+    let ctx = saga.ctx
+    
     let successors = saga.compSucc[step.key] ?? []
-    print("Compensation successors \(successors)")
     // Get all dependents
     for succ in successors {
-      guard let succ = saga.ctx.steps[succ] else { continue }
-      func shouldCompensate(_ key: KeyType) -> Bool {
-        guard let step = saga.ctx.steps[key] else { return false }
-        switch step.state {
-        case .done, .started: return true
-        case .compensated, .`init`, .aborted: return false
-        }
-      }
-
-      // If all of the dependencies of successor are done
-      if succ.compDeps.allSatisfy(shouldCompensate) {
-        print("Successor to be compensated \(succ)")
-        dispatch(.compensationStart(step: succ, payload: Data()))
-      }
+      guard let succ = ctx.steps[succ] else { continue }
+      dispatch(.compensationStart(step: succ))
     }
+    end(sagaId: ctx.id)
   }
 
-  func endComp(_ step: Step<KeyType>, with payload: Data) {
+  func endCompensateStep(_ step: Step<KeyType>, with payload: Data? = nil) {
     assert(step.state == .compensated)
     guard let saga = sagas[step.sagaId] else { return }
+    let ctx = saga.ctx
 
     let successors = saga.compSucc[step.key] ?? []
     // Get all dependents
     for succ in successors {
-      guard let succ = saga.ctx.steps[succ] else { continue }
-      func shouldCompensate(_ key: KeyType) -> Bool {
-        guard let step = saga.ctx.steps[key] else { return false }
-        switch step.state {
-        case .compensated, .`init`, .aborted: return true
-        case .done, .started: return false
-        }
-      }
-
-      // If all of the dependencies of successor are done
-      if succ.compDeps.allSatisfy(shouldCompensate) {
-        dispatch(.compensationStart(step: succ, payload: payload))
-      }
+      guard let succ = ctx.steps[succ] else { continue }
+      dispatch(.compensationStart(step: succ, payload: payload))
     }
+    end(sagaId: ctx.id)
   }
 }
 
@@ -167,5 +161,3 @@ extension Step {
     return comp.init()
   }
 }
-
-

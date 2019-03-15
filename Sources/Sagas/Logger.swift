@@ -4,7 +4,7 @@ public protocol Logger {
 
 extension Logger {
   public func log<KeyType>(_ message: Message<KeyType>) {
-    print("[LOGGER]: \(message)")
+    print("[LOGGER]: \(message.sagaId):\(message.type):\(message.stepKey)")
   }
 
   public func logStart<KeyType>(_ saga: Saga<KeyType>) {
