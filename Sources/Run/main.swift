@@ -1,78 +1,54 @@
 import Foundation
 import Sagas
 
-public enum ActionType: String {
-  case car, hotel, payment
-  case carDecline, hotelDecline, paymentDecline
+public enum TripKeys: String, Codable {
+  case car, hotel, plane, payment
+  case carCancel, hotelCancel, planeCancel, paymentDecline
 }
 
-enum TaskError: Error {
-  case randomTest
-}
+let trip = Trip(
+  payment: .paymen(accountId: 12345),
+  car: .car(carId: 44),
+  hotel: .hotel(hotelId: 194),
+  plane: .plane(ticketNumber: "234 gsfdgdfsg")
+)
 
-struct Task: Sagas.Task {
-  func execute(
-    using payload: Data?,
-    with completion: (Result<Data?, Error>) -> Void
-  ) {
-    usleep(1000000)
-    print("Executing")
-    if Int.random(in: 0..<10) < 7 {
-      completion(.success(Data()))
-    } else {
-      completion(.failure(TaskError.randomTest))
-    }
-  }
-}
-
-struct CompensatingTask: Sagas.Task {
-  func execute(
-    using payload: Data?,
-    with completion: (Result<Data?, Error>) -> Void
-  ) {
-    usleep(1000000)
-    print("Compensating")
-    if Int.random(in: 0..<10) < 8 {
-      completion(.success(Data()))
-    } else {
-      completion(.failure(TaskError.randomTest))
-    }
-  }
-}
-
-let saga = SagaDefinition<ActionType>(
-  name: "Test Saga",
+let tripSaga = SagaDefinition<TripKeys>(
+  name: "trip_saga",
   requests: [
-    .request(key: .car, compensation: .carDecline, task: Task.self),
-    .request(key: .hotel, compensation: .hotelDecline, task: Task.self),
+    .request(key: .car, compensation: .carCancel, task: CarReservation.self),
+    .request(
+      key: .car,
+      compensation: .carCancel,
+      task: CarReservation.self),
+    .request(
+      key: .hotel,
+      compensation: .hotelCancel,
+      task: HotelReservation.self),
+    .request(
+      key: .plane,
+      compensation: .planeCancel,
+      task: PlaneReservation.self),
     .request(
       key: .payment,
-      dependencies: [.car, .hotel],
+      dependencies: [.car, .hotel, .plane],
       compensation: .paymentDecline,
-      task: Task.self
-    ),
+      task: PaymentTask.self),
   ],
   compensations: [
-    .compensation(key: .carDecline, task: CompensatingTask.self),
-    .compensation(key: .hotelDecline, task: CompensatingTask.self),
-    .compensation(key: .paymentDecline, task: CompensatingTask.self)
+    .compensation(key: .carCancel, task:CarReservationCancellation.self),
+    .compensation(key: .hotelCancel, task: HotelReservationCancellation.self),
+    .compensation(key: .planeCancel, task: PlaneReservationCancellation.self),
+    .compensation(key: .paymentDecline, task: PaymentCancellationTask.self),
   ]
 )
 
 struct CustomLogger: Logger { }
-
-let executor = Executor<ActionType>(logger: CustomLogger())
-executor.register(saga) {
-  print("DONE 1")
+let executor = Executor<TripKeys>(logger: CustomLogger())
+let tripData = try utils.encoder.encode(trip)
+executor.register(tripSaga, using: tripData) {
+  print("DONE")
+  exit(0)
 }
-
-executor.register(saga) {
-  print("DONE 2")
-}
-
-executor.register(saga) {
-  print("DONE 3")
-}
-
 
 usleep(100_000_000)

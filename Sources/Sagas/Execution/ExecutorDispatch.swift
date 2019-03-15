@@ -84,6 +84,7 @@ extension Executor {
   func endStep(_ step: Step<KeyType>, with payload: Data? = nil) {
     assert(step.state == .done)
     guard let saga = sagas[step.sagaId] else { return }
+    let payload = saga.payload
     let ctx = saga.ctx
 
     let successors = saga.reqSucc[step.key] ?? []
@@ -114,13 +115,14 @@ extension Executor {
   func skipCompensateStep(_ step: Step<KeyType>) {
     assert(step.state == .`init` || step.state == .aborted)
     guard let saga = sagas[step.sagaId] else { return }
+    let payload = saga.payload
     let ctx = saga.ctx
     
     let successors = saga.compSucc[step.key] ?? []
     // Get all dependents
     for succ in successors {
       guard let succ = ctx.steps[succ] else { continue }
-      dispatch(.compensationStart(step: succ))
+      dispatch(.compensationStart(step: succ, payload: payload))
     }
     end(sagaId: ctx.id)
   }
@@ -128,6 +130,7 @@ extension Executor {
   func endCompensateStep(_ step: Step<KeyType>, with payload: Data? = nil) {
     assert(step.state == .compensated)
     guard let saga = sagas[step.sagaId] else { return }
+    let payload = saga.payload
     let ctx = saga.ctx
 
     let successors = saga.compSucc[step.key] ?? []

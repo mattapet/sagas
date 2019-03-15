@@ -1,4 +1,5 @@
 import Basic
+import Foundation
 
 fileprivate var id: Int = 0
 
@@ -19,38 +20,40 @@ public struct SagaContext<KeyType: Hashable> {
 }
 
 public class Saga<KeyType: Hashable> {
+  public typealias Payload = Data
+  
   private let mutex = PThreadMutex()
   private var _ctxSynchronized: SagaContext<KeyType>
   public var ctx: SagaContext<KeyType> {
-    get {
-      return _ctxSynchronized
-    }
-    set {
-      mutex.sync(execute: { _ctxSynchronized = newValue })
-    }
+    get { return _ctxSynchronized }
+    set { mutex.sync(execute: { _ctxSynchronized = newValue }) }
   }
   public let name: String
   public let reqSucc: [KeyType:[KeyType]]
   public let compSucc: [KeyType:[KeyType]]
+  public let payload: Payload?
 
   public init(
     ctx: SagaContext<KeyType>,
     name: String,
     reqSucc: [KeyType:[KeyType]],
-    compSucc: [KeyType:[KeyType]]
+    compSucc: [KeyType:[KeyType]],
+    payload: Payload? = nil
   ) {
     self._ctxSynchronized = ctx
     self.name = name
     self.reqSucc = reqSucc
     self.compSucc = compSucc
+    self.payload = payload
   }
 
-  public init(definition: SagaDefinition<KeyType>) {
+  public init(definition: SagaDefinition<KeyType>, payload: Payload? = nil) {
     defer { id += 1}
     self._ctxSynchronized = SagaContext(id: "\(id)")
     self.name = definition.name
     self.reqSucc = definition.requestSuccessors
     self.compSucc = definition.compensatingSuccessors
+    self.payload = payload
 
     let requestMap = definition.requestMap
     let compensationsMap = definition.compensationsMap

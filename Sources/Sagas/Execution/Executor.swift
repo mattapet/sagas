@@ -8,12 +8,8 @@ public class Executor<KeyType: Hashable> {
   private let mutex = PThreadMutex()
   private var _sagasSynchronized: [SagaId:Saga<KeyType>]
   var sagas: [SagaId:Saga<KeyType>] {
-    get {
-      return _sagasSynchronized
-    }
-    set {
-      mutex.sync(execute: { _sagasSynchronized = newValue })
-    }
+    get { return _sagasSynchronized }
+    set { mutex.sync(execute: { _sagasSynchronized = newValue }) }
   }
 
   var completions: [SagaId:ActionDisposable]
@@ -27,9 +23,10 @@ public class Executor<KeyType: Hashable> {
 
   public func register(
     _ definition: SagaDefinition<KeyType>,
+    using payload: Saga<KeyType>.Payload? = nil,
     with completion: @escaping () -> ()
   ) {
-    let saga = Saga(definition: definition)
+    let saga = Saga(definition: definition, payload: payload)
     sagas[saga.ctx.id] = saga
     completions[saga.ctx.id] = ActionDisposable(action: completion)
     start(sagaId: saga.ctx.id)
@@ -39,25 +36,27 @@ public class Executor<KeyType: Hashable> {
 extension Executor {
   func start(sagaId: SagaId) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     let ctx = saga.ctx
     assert(ctx.state == .`init`)
     logger.logStart(saga)
     saga.ctx.state = .started
     DispatchQueue.global().async { [weak self] in
       for step in ctx.steps.values where step.deps.isEmpty {
-        self?.dispatch(.requestStart(step: step))
+        self?.dispatch(.requestStart(step: step, payload: payload))
       }
     }
   }
 
   func compensate(sagaId: SagaId) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     let ctx = saga.ctx
     assert(ctx.state == .started, "State is \(ctx.state)")
     logger.logAbort(saga)
     saga.ctx.state = .aborted
     for step in ctx.steps.values where step.compDeps.isEmpty {
-      dispatch(.compensationStart(step: step))
+      dispatch(.compensationStart(step: step, payload: payload))
     }
   }
 
