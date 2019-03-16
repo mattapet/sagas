@@ -14,10 +14,16 @@ public enum StorageError: Error {
   case internalFailue
 }
 
+/// A thread safe, in-memory key-value store.
+///
+/// - description:
+///    `Storage` class provides very simple interface to access, modify and
+///    store values synchronously as well as asynchronously while maintaining
+///    it's storage thread safe.
 public class Storage<Key: Hashable, Value> {
-  public typealias NextFuntion = (Result<Value?, Error>) -> ()
-  public typealias LoadFilter = (Key, NextFuntion) -> ()
-  public typealias SaveFilter = (Key, Value, NextFuntion) -> ()
+  public typealias NextFuntion = (Result<Value?, Error>) -> Void
+  public typealias LoadFilter = (Key, NextFuntion) -> Void
+  public typealias SaveFilter = (Key, Value, NextFuntion) -> Void
   
   private var _mutex: PThreadMutex
   private var _storage: [Key:Value]
@@ -35,11 +41,8 @@ public class Storage<Key: Hashable, Value> {
 extension Storage {
   private func load(_ key: Key, _ next: NextFuntion) {
     next(Result { [weak self] in
-      try self?._mutex.sync { [weak self] () throws -> Value in
-        guard let value = self?._storage[key] else {
-          throw StorageError.valueForKeyNotFound
-        }
-        return value
+      try self?._mutex.sync { [weak self] () throws -> Value? in
+        return self?._storage[key]
       }
     })
   }
@@ -70,7 +73,7 @@ extension Storage {
 extension Storage {
   public func load(
     byKey key: Key,
-    with completion: @escaping (Result<Value?, Error>) -> ()
+    with completion: @escaping (Result<Value?, Error>) -> Void
   ) {
     DispatchQueue.global().async { [weak self] in
       self?.loadImpl(byKey: key, with: completion)
@@ -85,7 +88,7 @@ extension Storage {
   
   private func loadImpl(
     byKey key: Key,
-    with completion: @escaping (Result<Value?, Error>) -> ()
+    with completion: @escaping (Result<Value?, Error>) -> Void
   ) {
     var iterator = loadFilters.reversed().makeIterator()
     
@@ -113,7 +116,7 @@ extension Storage {
   public func save(
     _ value: Value,
     forKey key: Key,
-    with completion: @escaping (Result<Value?, Error>) -> ()
+    with completion: @escaping (Result<Value?, Error>) -> Void
   ) {
     DispatchQueue.global().async { [weak self] in
       self?.saveImpl(value, forKey: key, with: completion)
@@ -132,7 +135,7 @@ extension Storage {
   private func saveImpl(
     _ value: Value,
     forKey key: Key,
-    with completion: @escaping (Result<Value?, Error>) -> ()
+    with completion: @escaping (Result<Value?, Error>) -> Void
   ) {
     var iterator = saveFilters.reversed().makeIterator()
     func apply() {
@@ -152,3 +155,13 @@ extension Storage {
   }
 }
 
+
+extension Storage: CustomStringConvertible, CustomDebugStringConvertible {
+  public var description: String {
+    return _storage.description
+  }
+  
+  public var debugDescription: String {
+    return _storage.debugDescription
+  }
+}

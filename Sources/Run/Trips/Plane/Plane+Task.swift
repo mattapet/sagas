@@ -1,29 +1,14 @@
 //
-//  Plane.swift
+//  Plane+Task.swift
 //  Run
 //
-//  Created by Peter Matta on 3/14/19.
+//  Created by Peter Matta on 3/15/19.
 //
 
 import Sagas
 import Foundation
 
-public enum PlaneClass: String, Codable {
-  case economy, economyPlus, business
-  
-  public static var random: PlaneClass {
-    return [.economy, .economyPlus, .business].randomElement
-  }
-}
-
-public struct Plane: Codable {
-  public let ticketNumber: String
-  public let seat: String
-  public let flightNumber: String
-  public let `class`: PlaneClass
-}
-
-public struct PlaneReservation: Sagas.Task {
+public struct PlaneReservationTask: Sagas.Task {
   public init() { }
   
   public func execute(
@@ -39,12 +24,20 @@ public struct PlaneReservation: Sagas.Task {
   }
   
   func reserve(_ plane: Plane, forTripId tripId: Int) throws {
+    // Create reservation for plane
+    let reservation = PlaneReservation(tripId: tripId, plane: plane)
+    // Try to find a reservation for the given plane within the same trip
+    if let _ = try PlaneReservation.loadSync(byKey: reservation.key) {
+      // If such reservation found, return so we maintain idempotency
+      return
+    }
+    try reservation.saveSync()
     // create reservation
     print("[PLANE][RESERVATION]: \(tripId):\(plane)")
   }
 }
 
-public struct PlaneReservationCancellation: Sagas.Task {
+public struct PlaneReservationCancellationTask: Sagas.Task {
   public init() { }
   
   public func execute(
@@ -54,13 +47,19 @@ public struct PlaneReservationCancellation: Sagas.Task {
     completion(Result { () -> Data? in
       guard let payload = payload else { throw TripError.invalidPlanePayload }
       let trip = try utils.decoder.decode(Trip.self, from: payload)
-      try cancelReservation(forTripId: trip.tripId)
+      try cancelReservation(for: trip.plane, withTripId: trip.tripId)
       return try utils.encoder.encode(trip)
     })
   }
   
-  func cancelReservation(forTripId tripId: Int) throws {
+  func cancelReservation(for plane: Plane, withTripId tripId: Int) throws {
+    // Create cancelled reservation for plane and trip
+    let reservation =
+        PlaneReservation(tripId: tripId, plane: plane, cancelled: true)
+    // Override existing reservation or create new one
+    try reservation.saveSync()
     // cancel reservation
     print("[PLANE][CANCELLATION]: \(tripId)")
   }
 }
+

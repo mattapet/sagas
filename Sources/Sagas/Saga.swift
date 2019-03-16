@@ -7,6 +7,7 @@ public enum SagaState {
   case `init`, started, aborted, done
 }
 
+/// Wrapped mutable state of the saga
 public struct SagaContext<KeyType: Hashable> {
   public let id: String
   public var state: SagaState

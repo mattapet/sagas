@@ -16,19 +16,18 @@ let trip = Trip(
 let tripSaga = SagaDefinition<TripKeys>(
   name: "trip_saga",
   requests: [
-    .request(key: .car, compensation: .carCancel, task: CarReservation.self),
     .request(
       key: .car,
       compensation: .carCancel,
-      task: CarReservation.self),
+      task: CarReservationTask.self),
     .request(
       key: .hotel,
       compensation: .hotelCancel,
-      task: HotelReservation.self),
+      task: HotelReservationTask.self),
     .request(
       key: .plane,
       compensation: .planeCancel,
-      task: PlaneReservation.self),
+      task: PlaneReservationTask.self),
     .request(
       key: .payment,
       dependencies: [.car, .hotel, .plane],
@@ -36,9 +35,9 @@ let tripSaga = SagaDefinition<TripKeys>(
       task: PaymentTask.self),
   ],
   compensations: [
-    .compensation(key: .carCancel, task:CarReservationCancellation.self),
-    .compensation(key: .hotelCancel, task: HotelReservationCancellation.self),
-    .compensation(key: .planeCancel, task: PlaneReservationCancellation.self),
+    .compensation(key: .carCancel, task:CarReservationCancellationTask.self),
+    .compensation(key: .hotelCancel, task: HotelReservationCancellationTask.self),
+    .compensation(key: .planeCancel, task: PlaneReservationCancellationTask.self),
     .compensation(key: .paymentDecline, task: PaymentCancellationTask.self),
   ]
 )
@@ -47,6 +46,7 @@ struct CustomLogger: Logger { }
 let executor = Executor<TripKeys>(logger: CustomLogger())
 let tripData = try utils.encoder.encode(trip)
 executor.register(tripSaga, using: tripData) {
+  dumpStorage()
   print("DONE")
   exit(0)
 }

@@ -8,7 +8,6 @@ extension Executor {
       let ctx = saga.ctx
       guard let step = ctx.steps[message.stepKey] else { return }
       
-      
       switch (ctx.state, message.type, step.state) {
       case (.started, .reqStart, .`init`):
         self?.logger.log(message)

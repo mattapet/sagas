@@ -1,5 +1,5 @@
 //
-//  JSONCodable.swift
+//  utils.swift
 //  Run
 //
 //  Created by Peter Matta on 3/14/19.

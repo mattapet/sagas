@@ -3,6 +3,7 @@ public enum StepState {
   case compensated
 }
 
+/// `Step` represents a single node in saga execution graph.
 public struct Step<KeyType: Hashable> {
   public typealias SagaId = String
 

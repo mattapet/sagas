@@ -1,6 +1,14 @@
 import Dispatch
 import Basic
 
+/// Class that manager saga execution.
+///
+/// - description:
+///   Executor is (or at least should be...) a thread safe class responsible for
+///   correct execution of each saga.
+///
+/// - see:
+///    `Message`
 public class Executor<KeyType: Hashable> {
   public typealias SagaId = String
   public typealias Payload = Message<KeyType>.Payload
@@ -20,7 +28,9 @@ public class Executor<KeyType: Hashable> {
     self.completions = [:]
     self.logger = logger
   }
+}
 
+extension Executor {
   public func register(
     _ definition: SagaDefinition<KeyType>,
     using payload: Saga<KeyType>.Payload? = nil,
@@ -41,10 +51,8 @@ extension Executor {
     assert(ctx.state == .`init`)
     logger.logStart(saga)
     saga.ctx.state = .started
-    DispatchQueue.global().async { [weak self] in
-      for step in ctx.steps.values where step.deps.isEmpty {
-        self?.dispatch(.requestStart(step: step, payload: payload))
-      }
+    for step in ctx.steps.values where step.deps.isEmpty {
+      dispatch(.requestStart(step: step, payload: payload))
     }
   }
 
@@ -62,11 +70,14 @@ extension Executor {
 
   func end(sagaId: SagaId) {
     func shouldComplete(_ ctx: SagaContext<KeyType>) -> Bool {
+      // Saga is done iff
       switch ctx.state {
       case .`init`: return false
       case .done: return false
+      // Saga is `started` and all of the steps are complete (`.done`)
       case .started: return ctx.steps
         .values.allSatisfy({ $0.state == .done })
+      // Or saga is `aborted` and none of the steps remain `started` or `done`
       case .aborted: return ctx.steps
         .values.allSatisfy({ $0.state != .started && $0.state != .done })
       }
