@@ -8,7 +8,7 @@
 import Basic
 import Foundation
 
-fileprivate var _mutex: PThreadMutex = PThreadMutex()
+fileprivate var _lock: Lock = Lock()
 fileprivate var _storage: [String:AnyObject] = [:]
 
 /// Prints all storages.
@@ -16,7 +16,7 @@ fileprivate var _storage: [String:AnyObject] = [:]
 /// - description:
 ///     This operation is thread safe.
 func dumpStorage() {
-  _mutex.sync {
+  _lock.withLock {
     for (key, value) in _storage {
       print("Key: \(key)")
       print(value.description!)
@@ -56,7 +56,7 @@ func storage<T: Model>(for modelType: T.Type) -> Storage<T.Key, T> {
   // Get name of the type
   let type = "\(modelType.self)"
   // Make sure we're thread safe
-  return _mutex.sync {
+  return _lock.withLock {
     guard let storage = _storage[type] else {
       let storage = Storage<T.Key, T>()
       // Apply storage filters

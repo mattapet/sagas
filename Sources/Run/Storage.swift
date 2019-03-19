@@ -25,13 +25,13 @@ public class Storage<Key: Hashable, Value> {
   public typealias LoadFilter = (Key, NextFuntion) -> Void
   public typealias SaveFilter = (Key, Value, NextFuntion) -> Void
   
-  private var _mutex: PThreadMutex
+  private var _lock: Lock
   private var _storage: [Key:Value]
   private var loadFilters: [LoadFilter] = []
   private var saveFilters: [SaveFilter] = []
   
   public init() {
-    self._mutex = PThreadMutex()
+    self._lock = Lock()
     self._storage = [:]
   }
 }
@@ -41,7 +41,7 @@ public class Storage<Key: Hashable, Value> {
 extension Storage {
   private func load(_ key: Key, _ next: NextFuntion) {
     next(Result { [weak self] in
-      try self?._mutex.sync { [weak self] () throws -> Value? in
+      try self?._lock.withLock { [weak self] () throws -> Value? in
         return self?._storage[key]
       }
     })
@@ -49,7 +49,7 @@ extension Storage {
   
   private func save(_ key: Key, _ value: Value, _ next: NextFuntion) {
     next(Result { [weak self] in
-      try self?._mutex.sync { [weak self] () throws -> Value? in
+      try self?._lock.withLock { [weak self] () throws -> Value? in
         return self?._storage.updateValue(value, forKey: key)
       }
     })

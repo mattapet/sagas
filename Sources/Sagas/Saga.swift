@@ -23,11 +23,11 @@ public struct SagaContext<KeyType: Hashable> {
 public class Saga<KeyType: Hashable> {
   public typealias Payload = Data
   
-  private let mutex = PThreadMutex()
+  private let lock: Lock
   private var _ctxSynchronized: SagaContext<KeyType>
   public var ctx: SagaContext<KeyType> {
-    get { return _ctxSynchronized }
-    set { mutex.sync(execute: { _ctxSynchronized = newValue }) }
+    get { return lock.withLock { _ctxSynchronized } }
+    set { lock.withLock { _ctxSynchronized = newValue } }
   }
   public let name: String
   public let reqSucc: [KeyType:[KeyType]]
@@ -41,6 +41,7 @@ public class Saga<KeyType: Hashable> {
     compSucc: [KeyType:[KeyType]],
     payload: Payload? = nil
   ) {
+    self.lock = Lock()
     self._ctxSynchronized = ctx
     self.name = name
     self.reqSucc = reqSucc
@@ -50,6 +51,7 @@ public class Saga<KeyType: Hashable> {
 
   public init(definition: SagaDefinition<KeyType>, payload: Payload? = nil) {
     defer { id += 1}
+    self.lock = Lock()
     self._ctxSynchronized = SagaContext(id: "\(id)")
     self.name = definition.name
     self.reqSucc = definition.requestSuccessors

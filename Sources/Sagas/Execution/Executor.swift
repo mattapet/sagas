@@ -13,17 +13,18 @@ public class Executor<KeyType: Hashable> {
   public typealias SagaId = String
   public typealias Payload = Message<KeyType>.Payload
 
-  private let mutex = PThreadMutex()
+  private let lock: Lock
   private var _sagasSynchronized: [SagaId:Saga<KeyType>]
   var sagas: [SagaId:Saga<KeyType>] {
-    get { return _sagasSynchronized }
-    set { mutex.sync(execute: { _sagasSynchronized = newValue }) }
+    get { return lock.withLock { _sagasSynchronized } }
+    set { lock.withLock { _sagasSynchronized = newValue } }
   }
 
   var completions: [SagaId:ActionDisposable]
   public let logger: Logger
 
   public init(logger: Logger) {
+    self.lock = Lock()
     self._sagasSynchronized = [:]
     self.completions = [:]
     self.logger = logger
