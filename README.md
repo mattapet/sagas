@@ -24,12 +24,15 @@ swift run
 ```
 |
 +- Sources
- \
-  +- Basic
-  |
-  +- Run
-  |
-  +- Sagas
+|\
+| \
+|  +- Basic
+|  |
+|  +- LocalSagas
+|  |
+|  \- Sagas
+|
+\- Example
 ```
 
 ### Basic (library)
@@ -38,13 +41,18 @@ swift run
 project.  The basic class is generic in nature allowing possible reuse in different projects as
 well.
 
+### LocalSagas (libray)
+
+`LocalSagas` is a imeplementation of sagas focusing on local usage (within one process
+/application).
+
 ### Sagas (library)
 
-`Sagas` contains all of the source code implementing sagas functionality.
+`Sagas` contains all of the source code implementing core saga functionality.
 
-### Run (executable)
+### Example (project)
 
-`Run` excample code for actual saga usage with all supporting files. 
+`Example` is an example project showcasing usage of sagas libraries.
 
 ## Author
 
