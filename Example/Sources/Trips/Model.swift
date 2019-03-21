@@ -15,7 +15,7 @@ fileprivate var _storage: [String:AnyObject] = [:]
 ///
 /// - description:
 ///     This operation is thread safe.
-func dumpStorage() {
+public func dumpStorage() {
   _lock.withLock {
     for (key, value) in _storage {
       print("Key: \(key)")

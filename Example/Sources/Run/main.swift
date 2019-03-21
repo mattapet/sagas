@@ -3,6 +3,7 @@ import Dispatch
 import Foundation
 import Sagas
 import LocalSagas
+import Trips
 
 public enum TripKeys: String {
   case car, hotel, plane, payment
@@ -33,9 +34,9 @@ let paymentCancelTask = PaymentCancellationTask()
 
 let tripSaga = SagaDefinition {
   ("car", carTask.execute, carCancelTask.execute)
-   |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
-   |> ("plane", planeTask.execute, planeCancelTask.execute)
-   |> ("payment", paymentTask.execute, paymentCancelTask.execute)
+    |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
+    |> ("plane", planeTask.execute, planeCancelTask.execute)
+    |> ("payment", paymentTask.execute, paymentCancelTask.execute)
 }
 
 //let tripSaga = SagaDefinition(
@@ -79,7 +80,7 @@ struct CustomLogger: Logger {
   public func log(_ message: Message) {
     print("[LOGGER]: \(message.sagaId):\(message.type):\(message.stepKey)")
   }
-
+  
   public func logRegisterd(_ definition: SagaDefinition) {
     print("[LOGGER]: SAGA DEF REGISTERED \(definition.name)")
   }
@@ -87,11 +88,11 @@ struct CustomLogger: Logger {
   public func logStart(_ saga: Saga) {
     print("[LOGGER]: SAGA START \(saga.name):\(saga.sagaId)")
   }
-
+  
   public func logAbort(_ saga: Saga) {
     print("[LOGGER]: SAGA ABORT \(saga.name):\(saga.sagaId)")
   }
-
+  
   public func logEnd(_ saga: Saga) {
     print("[LOGGER]: SAGA END \(saga.name):\(saga.sagaId)")
   }
