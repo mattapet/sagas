@@ -69,21 +69,27 @@ extension Coordinator {
   private func startSaga(_ sagaId: String) {
     guard let saga = sagas[sagaId] else { return }
     guard saga.state == .`init` else { return }
+    let payload = saga.payload
     logger.logStart(saga)
     saga.state = .started
     saga.steps.values
       .filter { $0.dependencies.isEmpty }
-      .map { .transactionStart(sagaId: sagaId, stepKey: $0.key) }
+      .map {
+        .transactionStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
+      }
       .forEach(produce)
   }
   
   private func abortSaga(_ sagaId: String) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     logger.logAbort(saga)
     saga.state = .aborted
     saga.steps.values
       .filter { $0.successors.isEmpty }
-      .map { .compensationStart(sagaId: sagaId, stepKey: $0.key) }
+      .map {
+        .compensationStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
+      }
       .forEach(produce)
   }
   
@@ -124,7 +130,7 @@ extension Coordinator {
       logger.log(message)
       step.state = .started
       let task = step.transaction.init()
-      startTransaction(task, step.key, message.sagaId)
+      startTransaction(task, message)
     
     case (.started, .transactionAbort):
       logger.log(message)
@@ -142,7 +148,7 @@ extension Coordinator {
          (.done, .compensationStart):
       logger.log(message)
       let task = step.compensation.init()
-      startCompensation(task, step.key, message.sagaId)
+      startCompensation(task, message)
     
     case (.`init`, .compensationStart),
          (.aborted, .compensationStart):
@@ -166,25 +172,40 @@ extension Coordinator {
 extension Coordinator {
   private func startTransaction(
     _ task: Task,
-    _ stepKey: String,
-    _ sagaId: String
+    _ message: Message
   ) {
-    let action = createAction(
-      task: task,
-      stepKey: stepKey,
-      sagaId: sagaId,
-      successMessageCreator: Message.transactionEnd,
-      failedMessageCreator: Message.transactionAbort
-    )
+    let action: Action = .from(message: message, task: task)
+    { [weak self] result in
+      switch result {
+      case .success(let payload):
+        self?.produce(
+          .transactionEnd(
+            sagaId: message.sagaId,
+            stepKey: message.stepKey,
+            payload: payload
+          )
+        )
+      case .failure:
+        self?.produce(
+          .transactionAbort(
+            sagaId: message.sagaId,
+            stepKey: message.stepKey
+          )
+        )
+      }
+    }
     executor.execute(action)
   }
   
   private func abortTransation(_ sagaId: String) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     saga.state = .aborted
     saga.steps.values
       .filter { $0.successors.isEmpty }
-      .map { .compensationStart(sagaId: sagaId, stepKey: $0.key) }
+      .map {
+        .compensationStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
+      }
       .forEach(produce)
   }
   
@@ -193,6 +214,7 @@ extension Coordinator {
     _ sagaId: String
   ) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     step.successors
       // Get all successing steps
       .compactMap { saga.steps[$0] }
@@ -207,23 +229,37 @@ extension Coordinator {
             .allSatisfy({ $0.state == .done })
       }
       // Create start transaction message for all of them
-      .map { .transactionStart(sagaId: sagaId, stepKey: $0.key) }
+      .map {
+        .transactionStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
+      }
       // And enqueue them
       .forEach(produce)
   }
   
   private func startCompensation(
     _ task: Task,
-    _ stepKey: String,
-    _ sagaId: String
+    _ message: Message
   ) {
-    let action = createAction(
-      task: task,
-      stepKey: stepKey,
-      sagaId: sagaId,
-      successMessageCreator: Message.compensationEnd,
-      failedMessageCreator: Message.compensationStart
-    )
+    let action: Action = .from(message: message, task: task)
+      { [weak self] result in
+        switch result {
+        case .success:
+          self?.produce(
+            .compensationEnd(
+              sagaId: message.sagaId,
+              stepKey: message.stepKey
+            )
+          )
+        case .failure:
+          self?.produce(
+            .compensationStart(
+              sagaId: message.sagaId,
+              stepKey: message.stepKey,
+              payload: message.payload
+            )
+          )
+        }
+      }
     executor.execute(action)
   }
   
@@ -232,6 +268,7 @@ extension Coordinator {
     _ sagaId: String
   ) {
     guard let saga = sagas[sagaId] else { return }
+    let payload = saga.payload
     step.dependencies
       // Get all successing steps
       .compactMap { saga.steps[$0] }
@@ -246,39 +283,10 @@ extension Coordinator {
             .allSatisfy({ $0.state != .done && $0.state != .started })
       }
       // Create start transaction message for all of them
-      .map { .compensationStart(sagaId: sagaId, stepKey: $0.key) }
+      .map {
+        .compensationStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
+      }
       // And enqueue them
       .forEach(produce)
-  }
-}
-
-extension Coordinator {
-  private func createAction(
-    task: Task,
-    stepKey: String,
-    sagaId: String,
-    successMessageCreator: @escaping (String, String) -> Message,
-    failedMessageCreator: @escaping (String, String) -> Message
-  ) -> Action {
-    let callback = { [weak self] (result: Result<Data?, Error>) in
-      switch result {
-      case .success:
-        self?.produce(
-          successMessageCreator(sagaId, stepKey)
-        )
-      case .failure:
-        self?.produce(
-          failedMessageCreator(sagaId, stepKey)
-        )
-      }
-    }
-    
-    return Action(
-      task: task,
-      stepKey: stepKey,
-      sagaId: sagaId,
-      payload: nil,
-      callback: callback
-    )
   }
 }

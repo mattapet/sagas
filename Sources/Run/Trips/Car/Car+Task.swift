@@ -13,8 +13,8 @@ public struct CarReservationTask: Sagas.Task {
   
   public func execute(
     using payload: Data?,
-    with completion: (Result<Data?, Error>
-  ) -> Void) {
+    with completion: (Result<Data?, Error>) -> Void
+  ) {
     completion(Result { () -> Data? in
       guard let payload = payload else { throw TripError.invalidHotelPayload }
       let trip = try utils.decoder.decode(Trip.self, from: payload)
@@ -42,8 +42,8 @@ public struct CarReservationCancellationTask: Sagas.Task {
   
   public func execute(
     using payload: Data?,
-    with completion: (Result<Data?, Error>
-  ) -> Void) {
+    with completion: (Result<Data?, Error>) -> Void
+  ) {
     completion(Result { () -> Data? in
       guard let payload = payload else { throw TripError.invalidHotelPayload }
       let trip = try utils.decoder.decode(Trip.self, from: payload)
