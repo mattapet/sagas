@@ -1,5 +1,5 @@
 public protocol Disposable {
-  var disposed: Bool { get }
+  var isDisposed: Bool { get }
 
   func dispose()
 }
@@ -7,7 +7,7 @@ public protocol Disposable {
 public final class ActionDisposable: Disposable {
   private var action: (() -> ())?
 
-  public var disposed: Bool {
+  public var isDisposed: Bool {
     return action == nil
   }
 

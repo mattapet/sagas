@@ -1,10 +1,11 @@
 import Foundation
 import Sagas
 
-public enum TripKeys: String, Codable {
+public enum TripKeys: String {
   case car, hotel, plane, payment
   case carCancel, hotelCancel, planeCancel, paymentDecline
 }
+
 
 let trip = Trip(
   payment: .paymen(accountId: 12345),
@@ -13,39 +14,39 @@ let trip = Trip(
   plane: .plane(ticketNumber: "234 gsfdgdfsg")
 )
 
-let tripSaga = SagaDefinition<TripKeys>(
+let tripSaga = SagaDefinition(
   name: "trip_saga",
   requests: [
     .request(
-      key: .car,
-      compensation: .carCancel,
+      key: ".car",
+      compensation: ".carCancel",
       task: CarReservationTask.self),
     .request(
-      key: .hotel,
-      compensation: .hotelCancel,
+      key: ".hotel",
+      compensation: ".hotelCancel",
       task: HotelReservationTask.self),
     .request(
-      key: .plane,
-      compensation: .planeCancel,
+      key: ".plane",
+      compensation: ".planeCancel",
       task: PlaneReservationTask.self),
     .request(
-      key: .payment,
-      dependencies: [.car, .hotel, .plane],
-      compensation: .paymentDecline,
+      key: ".payment",
+      dependencies: [".car", ".hotel", ".plane"],
+      compensation: ".paymentDecline",
       task: PaymentTask.self),
   ],
   compensations: [
-    .compensation(key: .carCancel, task:CarReservationCancellationTask.self),
-    .compensation(key: .hotelCancel, task: HotelReservationCancellationTask.self),
-    .compensation(key: .planeCancel, task: PlaneReservationCancellationTask.self),
-    .compensation(key: .paymentDecline, task: PaymentCancellationTask.self),
+    .compensation(key: ".carCancel", task:CarReservationCancellationTask.self),
+    .compensation(key: ".hotelCancel", task: HotelReservationCancellationTask.self),
+    .compensation(key: ".planeCancel", task: PlaneReservationCancellationTask.self),
+    .compensation(key: ".paymentDecline", task: PaymentCancellationTask.self),
   ]
 )
 
 struct CustomLogger: Logger { }
-let executor = Executor<TripKeys>(logger: CustomLogger())
+let coordinator = Coordinator(logger: CustomLogger())
 let tripData = try utils.encoder.encode(trip)
-executor.register(tripSaga, using: tripData) {
+coordinator.register(tripSaga, using: tripData) {
   dumpStorage()
   print("DONE")
   exit(0)

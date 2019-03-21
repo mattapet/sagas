@@ -1,4 +1,4 @@
-public struct Compensation<KeyType: Hashable> {
-  public let key: KeyType
+public struct Compensation {
+  public let key: String
   public let task: Task.Type
 }

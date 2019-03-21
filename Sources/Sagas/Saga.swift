@@ -1,112 +1,72 @@
-import Basic
+//
+//  Saga.swift
+//  Sagas
+//
+//  Created by Peter Matta on 3/19/19.
+//
+
 import Foundation
 
-fileprivate var id: Int = 0
-
-public enum SagaState {
-  case `init`, started, aborted, done
-}
-
-/// Wrapped mutable state of the saga
-public struct SagaContext<KeyType: Hashable> {
-  public let id: String
-  public var state: SagaState
-  public var steps: [KeyType:Step<KeyType>]
-
-  public init(id: String) {
-    self.id = id
-    self.state = .`init`
-    self.steps = [:]
+public final class Saga {
+  enum State {
+    case `init`, started, aborted, done
   }
-}
-
-public class Saga<KeyType: Hashable> {
-  public typealias Payload = Data
   
-  private let lock: Lock
-  private var _ctxSynchronized: SagaContext<KeyType>
-  public var ctx: SagaContext<KeyType> {
-    get { return lock.withLock { _ctxSynchronized } }
-    set { lock.withLock { _ctxSynchronized = newValue } }
-  }
+  internal var state: State = .`init`
   public let name: String
-  public let reqSucc: [KeyType:[KeyType]]
-  public let compSucc: [KeyType:[KeyType]]
-  public let payload: Payload?
-
+  public let sagaId: String
+  public let steps: [String:Step]
+  public let payload: Data?
+  
   public init(
-    ctx: SagaContext<KeyType>,
     name: String,
-    reqSucc: [KeyType:[KeyType]],
-    compSucc: [KeyType:[KeyType]],
-    payload: Payload? = nil
+    sagaId: String,
+    steps: [String:Step],
+    payload: Data? = nil
   ) {
-    self.lock = Lock()
-    self._ctxSynchronized = ctx
     self.name = name
-    self.reqSucc = reqSucc
-    self.compSucc = compSucc
+    self.sagaId = sagaId
+    self.steps = steps
     self.payload = payload
   }
-
-  public init(definition: SagaDefinition<KeyType>, payload: Payload? = nil) {
-    defer { id += 1}
-    self.lock = Lock()
-    self._ctxSynchronized = SagaContext(id: "\(id)")
+  
+  public init(
+    sagaId: String,
+    definition: SagaDefinition,
+    payload: Data? = nil
+  ) {
     self.name = definition.name
-    self.reqSucc = definition.requestSuccessors
-    self.compSucc = definition.compensatingSuccessors
+    self.sagaId = sagaId
+    self.steps = definition.produceExecutionGraph()
     self.payload = payload
-
-    let requestMap = definition.requestMap
-    let compensationsMap = definition.compensationsMap
-
-    let steps = definition.requests.compactMap { request -> Step<KeyType>? in
-      let compDeps = (reqSucc[request.key] ?? [])
-        .compactMap { requestMap[$0]?.key }
-      guard let comp = compensationsMap[request.compensation]
-        else { return nil }
-
-      return Step<KeyType>(
-        state: .`init`,
-        sagaId: "\(id)",
-        key: request.key,
-        deps: request.dependencies,
-        compDeps: compDeps,
-        req: request.task,
-        comp: comp.task
-      )
-    }
-    self.ctx.steps = steps.reduce(into: [:]) { $0[$1.key] = $1 }
   }
 }
 
 extension SagaDefinition {
-  fileprivate var requestMap: [KeyType:RequestType] {
+  fileprivate var requestMap: [String:Request] {
     return requests.reduce(into: [:]) { $0[$1.key] = $1 }
   }
-
-  fileprivate var compensationsMap: [KeyType:CompensationType] {
+  
+  fileprivate var compensationMap: [String:Compensation] {
     return compensations.reduce(into: [:]) { $0[$1.key] = $1 }
   }
-
-  fileprivate var requestSuccessors: [KeyType:[KeyType]] {
-    let successors: [KeyType:Set<KeyType>] = requests
+  
+  fileprivate func produceExecutionGraph() -> [String:Step] {
+    let comps = compensationMap
+    let successors: [String:Set<String>] = requests
       .reduce(into: [:]) { result, next in
-        next.dependencies.forEach {
-          result[$0, default: []].insert(next.key)
-        }
+        next.dependencies.forEach { result[$0, default: []].insert(next.key) }
       }
-    return successors.mapValues(Array.init)
-  }
-
-  fileprivate var compensatingSuccessors: [KeyType:[KeyType]] {
-    let successors: [KeyType:Set<KeyType>] = requests
-      .reduce(into: [:]) { result, next in
-        next.dependencies.forEach {
-          result[next.key, default: []].insert($0)
-        }
-      }
-    return successors.mapValues(Array.init)
+    return requestMap.compactMapValues { request in
+      // At this point `compensation` must exists
+      let compensation = comps[request.compensation]!
+      let successors = successors[request.key] ?? []
+      return Step(
+        key: request.key,
+        dependencies: request.dependencies,
+        successors: Array(successors),
+        transaction: request.task,
+        compensation: compensation.task)
+    }
   }
 }

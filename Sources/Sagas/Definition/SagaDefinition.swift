@@ -1,6 +1,6 @@
-public struct SagaDefinition<KeyType: Hashable> {
-  public typealias RequestType = Request<KeyType>
-  public typealias CompensationType = Compensation<KeyType>
+public struct SagaDefinition {
+  public typealias RequestType = Request
+  public typealias CompensationType = Compensation
 
   public let name: String
   public let requests: [RequestType]
@@ -18,13 +18,13 @@ public struct SagaDefinition<KeyType: Hashable> {
 }
 
 extension Request {
-  public static func request<KeyType: Hashable>(
-    key: KeyType,
-    dependencies: [KeyType],
-    compensation: KeyType,
+  public static func request(
+    key: String,
+    dependencies: [String],
+    compensation: String,
     task: Task.Type
-  ) -> Request<KeyType> {
-    return Request<KeyType>(
+  ) -> Request {
+    return Request(
       key: key,
       dependencies: dependencies,
       compensation: compensation,
@@ -32,12 +32,12 @@ extension Request {
     )
   }
 
-  public static func request<KeyType: Hashable>(
-    key: KeyType,
-    compensation: KeyType,
+  public static func request(
+    key: String,
+    compensation: String,
     task: Task.Type
-  ) -> Request<KeyType> {
-    return Request<KeyType>(
+  ) -> Request {
+    return Request(
       key: key,
       dependencies: [],
       compensation: compensation,
@@ -47,11 +47,11 @@ extension Request {
 }
 
 extension Compensation {
-  public static func compensation<KeyType: Hashable>(
-    key: KeyType,
+  public static func compensation(
+    key: String,
     task: Task.Type
-  ) -> Compensation<KeyType> {
-    return Compensation<KeyType>(
+  ) -> Compensation {
+    return Compensation(
       key: key,
       task: task
     )
