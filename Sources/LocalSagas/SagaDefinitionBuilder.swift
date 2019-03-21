@@ -41,7 +41,7 @@ extension SagaDefinitionBuilder {
           .request(
             key: name,
             compensation: compensations.last!.key,
-            task: LocalTask(closure: transaction)
+            task: BasicTask(closure: transaction)
           )
       )
     }
@@ -66,7 +66,7 @@ extension SagaDefinitionBuilder {
           key: name,
           dependencies: [previous],
           compensation: compensations.last!.key,
-          task: LocalTask(closure: transaction)
+          task: BasicTask(closure: transaction)
         )
     )
   }
@@ -174,7 +174,7 @@ extension Request {
       key: key,
       dependencies: dependencies,
       compensation: compensation,
-      task: LocalTask(closure: task)
+      task: BasicTask(closure: task)
     )
   }
   
@@ -186,7 +186,7 @@ extension Request {
     return request(
       key: key,
       compensation: compensation,
-      task: LocalTask(closure: task)
+      task: BasicTask(closure: task)
     )
   }
 }
@@ -198,7 +198,7 @@ extension Compensation {
     let key = UUID().uuidString
     return compensation(
       key: key,
-      task: LocalTask(closure: task)
+      task: BasicTask(closure: task)
     )
   }
 }

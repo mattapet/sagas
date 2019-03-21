@@ -22,7 +22,7 @@ public struct CarReservation {
   }
 }
 
-extension CarReservation: AsyncModel {
+extension CarReservation: Model {
   public typealias Key = String
   public var key: String {
     return "\(tripId):\(car.carId)"

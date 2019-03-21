@@ -9,7 +9,8 @@ import Foundation
 
 public final class Step {
   enum State {
-    case `init`, started, aborted, done, compensating, compensated
+    case `init`, started, aborted, done
+    case compensating, compensated
   }
   
   internal var state: State = .`init`

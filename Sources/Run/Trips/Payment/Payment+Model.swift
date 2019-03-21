@@ -21,14 +21,14 @@ public struct Debit {
   public let currency: Currency
 }
 
-extension Credit: AsyncModel {
+extension Credit: Model {
   public typealias Key = Int
   public var key: Int {
     return tripId
   }
 }
 
-extension Debit: AsyncModel {
+extension Debit: Model {
   public typealias Key = Int
   public var key: Int {
     return tripId

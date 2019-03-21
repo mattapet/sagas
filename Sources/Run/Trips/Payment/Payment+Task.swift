@@ -5,6 +5,7 @@
 //  Created by Peter Matta on 3/15/19.
 //
 
+import Basic
 import Sagas
 import Foundation
 
@@ -17,22 +18,22 @@ public protocol PaymentExecutable {
 extension PaymentExecutable {
   public func credit(_ payment: Payment, forTripId tripId: Int) throws {
     // Make sure we credit only once per trip
-    if let _ = try Credit.loadSync(byKey: tripId) { return }
+    if let _ = try await(tripId, Credit.load) { return }
     // If there has been no credit yet, create one
     let credit =
       Credit(tripId: tripId, amount: payment.amount, currency: payment.currency)
-    try credit.saveSync()
+    try await(credit.save)
     // add credit to account
     print("[CREDIT] \(tripId):\(payment)")
   }
   
   public func debit(_ payment: Payment, forTripId tripId: Int) throws {
     // Make sure we debit only once per trip
-    if let _ = try Debit.loadSync(byKey: tripId) { return }
+    if let _ = try await(tripId, Debit.load) { return }
     // If there has been no debit yet, create one
     let debit =
       Debit(tripId: tripId, amount: payment.amount, currency: payment.currency)
-    try debit.saveSync()
+    try await(debit.save)
     // add debit to account
     print("[DEBIT] \(tripId):\(payment)")
   }

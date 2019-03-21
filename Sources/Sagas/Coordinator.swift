@@ -27,10 +27,10 @@ public final class Coordinator {
   private var sagas: [String:Saga]
   private var completions: [String:Disposable]
   
-  public init(logger: Logger) {
+  public init(logger: Logger, executor: Executor) {
     self.produceMessage = DispatchQueue(label: "produce_message_queue")
     self.consumeMessage = DispatchQueue(label: "consume_message_queue")
-    self.executor = Executor()
+    self.executor = executor
     self.lock = Lock()
     self.definitions = [:]
     self.sagas = [:]

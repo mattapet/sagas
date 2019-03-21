@@ -1,5 +1,5 @@
 //
-//  LocalTask.swift
+//  ClosureTask.swift
 //  LocalSagas
 //
 //  Created by Peter Matta on 3/21/19.
@@ -21,6 +21,6 @@ extension ClosureTask {
   }
 }
 
-public struct LocalTask: ClosureTask {
+public struct BasicTask: ClosureTask {
   public let closure: (Data?, (Result<Data?, Error>) -> Void) -> Void
 }

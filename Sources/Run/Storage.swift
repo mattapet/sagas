@@ -80,11 +80,11 @@ extension Storage {
     }
   }
   
-  public func loadSync(byKey key: Key) -> Result<Value?, Error> {
-    var result: Result<Value?, Error> = .failure(StorageError.internalFailue)
-    loadImpl(byKey: key) { result = $0 }
-    return result
-  }
+//  public func loadSync(byKey key: Key) -> Result<Value?, Error> {
+//    var result: Result<Value?, Error> = .failure(StorageError.internalFailue)
+//    loadImpl(byKey: key) { result = $0 }
+//    return result
+//  }
   
   private func loadImpl(
     byKey key: Key,
@@ -123,14 +123,14 @@ extension Storage {
     }
   }
   
-  public func saveSync(
-    _ value: Value,
-    forKey key: Key
-  ) -> Result<Value?, Error> {
-    var result: Result<Value?, Error> = .failure(StorageError.internalFailue)
-    self.saveImpl(value, forKey: key) { result = $0 }
-    return result
-  }
+//  public func saveSync(
+//    _ value: Value,
+//    forKey key: Key
+//  ) -> Result<Value?, Error> {
+//    var result: Result<Value?, Error> = .failure(StorageError.internalFailue)
+//    self.saveImpl(value, forKey: key) { result = $0 }
+//    return result
+//  }
   
   private func saveImpl(
     _ value: Value,

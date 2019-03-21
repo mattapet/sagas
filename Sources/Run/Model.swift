@@ -73,23 +73,12 @@ func storage<T: Model>(for modelType: T.Type) -> Storage<T.Key, T> {
 /// - description:
 ///     `Model` protocol provides default operations for storing and looking up
 ///     instances of the entity models. By default all of the methods are
-///     synchronous.
-///
-/// - see:
-///     `AsyncModel`
+///     asynchronous.
 public protocol Model {
   associatedtype Key: Hashable
   
   var key: Key { get }
   
-  /// Saved the model entity synchronously.
-  func saveSync() throws -> Self?
-  
-  /// Loads an entity by the given key synchronously.
-  static func loadSync(byKey key: Key) throws -> Self?
-}
-
-public protocol AsyncModel: Model {
   /// Saved the model entity asynchronously.
   func save(with completion: @escaping (Result<Self?, Error>) -> Void)
   
@@ -101,35 +90,6 @@ public protocol AsyncModel: Model {
 }
 
 extension Model {
-  @discardableResult
-  public func saveSync() throws -> Self? {
-    let result = storage(for: Self.self).saveSync(self, forKey: key)
-    switch result {
-    case .success(let payload): return payload
-    case .failure(let error): throw error
-    }
-  }
-  
-  public static func loadSync(byKey key: Key) throws -> Self? {
-    let result = storage(for: Self.self).loadSync(byKey: key)
-    switch result {
-    case .success(let payload): return payload
-    case .failure(let error): throw error
-    }
-  }
-}
-
-/// Protocol that any entity that wishes to be stored in asynchronous fashion
-/// must conform to.
-///
-/// - description:
-///     `AsyncModel` protocol provides default operations for storing and
-///     looking up instances of the entity models *asynchronously* . This
-///     protocol extends `Model` protocol, that provides basic synchronous API.
-///
-/// - see:
-///     `Model`
-extension AsyncModel {
   public func save(with completion: @escaping (Result<Self?, Error>) -> Void) {
     return storage(for: Self.self).save(self, forKey: key, with: completion)
   }
@@ -137,7 +97,7 @@ extension AsyncModel {
   public static func load(
     byKey key: Key,
     with completion: @escaping (Result<Self?, Error>) -> Void
-  ) {
+    ) {
     return storage(for: Self.self).load(byKey: key, with: completion)
   }
 }

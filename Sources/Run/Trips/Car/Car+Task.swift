@@ -5,6 +5,7 @@
 //  Created by Peter Matta on 3/15/19.
 //
 
+import Basic
 import Sagas
 import Foundation
 
@@ -27,11 +28,11 @@ public struct CarReservationTask: Sagas.Task {
     // Create reservation for plane
     let reservation = CarReservation(tripId: tripId, car: car)
     // Try to find a reservation for the given plane within the same trip
-    if let _ = try CarReservation.loadSync(byKey: reservation.key) {
+    if let _ = try await(reservation.key, CarReservation.load) {
       // If such reservation found, return so we maintain idempotency
       return
     }
-    try reservation.saveSync()
+    try await(reservation.save)
     // create reservation
     print("[CAR][RESERVATION] \(tripId):\(car)")
   }
@@ -57,7 +58,7 @@ public struct CarReservationCancellationTask: Sagas.Task {
     let reservation =
       CarReservation(tripId: tripId, car: car, cancelled: true)
     // Override existing reservation or create new one
-    try reservation.saveSync()
+    try await(reservation.save)
     // cancel reservation
     print("[CAR][CANCELATION] \(tripId)")
   }

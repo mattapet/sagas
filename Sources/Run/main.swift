@@ -1,3 +1,4 @@
+import Basic
 import Dispatch
 import Foundation
 import Sagas
@@ -74,9 +75,25 @@ let tripSaga = SagaDefinition {
 //  ]
 //)
 
-struct CustomLogger: Logger { }
+struct CustomLogger: Logger {
+  public func log(_ message: Message) {
+    print("[LOGGER]: \(message.sagaId):\(message.type):\(message.stepKey)")
+  }
+
+  public func logStart(_ saga: Saga) {
+    print("[LOGGER]: SAGA START \(saga.name):\(saga.sagaId)")
+  }
+
+  public func logAbort(_ saga: Saga) {
+    print("[LOGGER]: SAGA ABORT \(saga.name):\(saga.sagaId)")
+  }
+
+  public func logEnd(_ saga: Saga) {
+    print("[LOGGER]: SAGA END \(saga.name):\(saga.sagaId)")
+  }
+}
 let group = DispatchGroup()
-let coordinator = Coordinator(logger: CustomLogger())
+let coordinator = Coordinator(logger: CustomLogger(), executor: BasicExecutor())
 let tripData = try utils.encoder.encode(trip)
 let tripData1 = try utils.encoder.encode(trip1)
 
