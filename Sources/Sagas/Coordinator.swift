@@ -165,7 +165,7 @@ extension Coordinator {
     case (.`init`, .transactionStart):
       logger.log(message)
       step.state = .started
-      let task = step.transaction.init()
+      let task = step.transaction
       startTransaction(task, message)
     
     case (.started, .transactionAbort):
@@ -183,7 +183,12 @@ extension Coordinator {
     case (.started, .compensationStart),
          (.done, .compensationStart):
       logger.log(message)
-      let task = step.compensation.init()
+      step.state = .compensating
+      let task = step.compensation
+      startCompensation(task, message)
+      
+    case (.compensating, .compensationStart):
+      let task = step.compensation
       startCompensation(task, message)
     
     case (.`init`, .compensationStart),
@@ -191,8 +196,7 @@ extension Coordinator {
       completeCompensation(step, message.sagaId)
       completeCompensation(message.sagaId)
       
-    case (.started, .compensationEnd),
-         (.done, .compensationEnd):
+    case (.compensating, .compensationEnd):
       logger.log(message)
       step.state = .compensated
       completeCompensation(step, message.sagaId)
@@ -234,14 +238,7 @@ extension Coordinator {
   
   private func abortTransation(_ sagaId: String) {
     guard let saga = sagas[sagaId] else { return }
-    let payload = saga.payload
     saga.state = .aborted
-    saga.steps.values
-      .filter { $0.successors.isEmpty }
-      .map {
-        .compensationStart(sagaId: sagaId, stepKey: $0.key, payload: payload)
-      }
-      .forEach(produce)
   }
   
   private func completeTransaction(
@@ -305,18 +302,8 @@ extension Coordinator {
     guard let saga = sagas[sagaId] else { return }
     let payload = saga.payload
     step.dependencies
-      // Get all successing steps
+      // Get all successing compensation steps
       .compactMap { saga.steps[$0] }
-      // Declaration of the fileter lambda necessary for compiler to typecheck
-      // in reasonable amound of time.
-      .filter { (step: Step) -> Bool in
-        // Pick ones that have not been compensated for
-        return (step.state == .done || step.state == .started) &&
-          // And have all of their predecessors compensated for
-          step.successors
-            .compactMap({ saga.steps[$0] })
-            .allSatisfy({ $0.state != .done && $0.state != .started })
-      }
       // Create start transaction message for all of them
       .map {
         .compensationStart(sagaId: sagaId, stepKey: $0.key, payload: payload)

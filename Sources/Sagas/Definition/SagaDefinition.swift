@@ -22,7 +22,7 @@ extension Request {
     key: String,
     dependencies: [String],
     compensation: String,
-    task: Task.Type
+    task: Task
   ) -> Request {
     return Request(
       key: key,
@@ -35,7 +35,7 @@ extension Request {
   public static func request(
     key: String,
     compensation: String,
-    task: Task.Type
+    task: Task
   ) -> Request {
     return Request(
       key: key,
@@ -49,7 +49,7 @@ extension Request {
 extension Compensation {
   public static func compensation(
     key: String,
-    task: Task.Type
+    task: Task
   ) -> Compensation {
     return Compensation(
       key: key,

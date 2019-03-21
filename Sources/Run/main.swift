@@ -1,12 +1,12 @@
 import Dispatch
 import Foundation
 import Sagas
+import LocalSagas
 
 public enum TripKeys: String {
   case car, hotel, plane, payment
   case carCancel, hotelCancel, planeCancel, paymentDecline
 }
-
 
 let trip = Trip(
   payment: .paymen(accountId: 12345),
@@ -21,39 +21,64 @@ let trip1 = Trip(
   plane: .plane(ticketNumber: "443214 hgfdefgt")
 )
 
-let tripSaga = SagaDefinition(
-  name: "trip_saga",
-  requests: [
-    .request(
-      key: ".car",
-      compensation: ".carCancel",
-      task: CarReservationTask.self),
-    .request(
-      key: ".hotel",
-      compensation: ".hotelCancel",
-      task: HotelReservationTask.self),
-    .request(
-      key: ".plane",
-      compensation: ".planeCancel",
-      task: PlaneReservationTask.self),
-    .request(
-      key: ".payment",
-      dependencies: [".car", ".hotel", ".plane"],
-      compensation: ".paymentDecline",
-      task: PaymentTask.self),
-  ],
-  compensations: [
-    .compensation(key: ".carCancel", task:CarReservationCancellationTask.self),
-    .compensation(key: ".hotelCancel", task: HotelReservationCancellationTask.self),
-    .compensation(key: ".planeCancel", task: PlaneReservationCancellationTask.self),
-    .compensation(key: ".paymentDecline", task: PaymentCancellationTask.self),
-  ]
-)
+let carTask = CarReservationTask()
+let carCancelTask = CarReservationCancellationTask()
+let hotelTask = HotelReservationTask()
+let hotelCancelTask = HotelReservationCancellationTask()
+let planeTask = PlaneReservationTask()
+let planeCancelTask = PlaneReservationCancellationTask()
+let paymentTask = PaymentTask()
+let paymentCancelTask = PaymentCancellationTask()
+
+let tripSaga = SagaDefinition {
+  ("car", carTask.execute, carCancelTask.execute)
+   |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
+   |> ("plane", planeTask.execute, planeCancelTask.execute)
+   |> ("payment", paymentTask.execute, paymentCancelTask.execute)
+}
+
+//let tripSaga = SagaDefinition(
+//  name: "trip_saga",
+//  requests: [
+//    .request(
+//      key: ".car",
+//      compensation: ".carCancel",
+//      task: CarReservationTask()),
+//    .request(
+//      key: ".hotel",
+//      compensation: ".hotelCancel",
+//      task: HotelReservationTask()),
+//    .request(
+//      key: ".plane",
+//      compensation: ".planeCancel",
+//      task: PlaneReservationTask()),
+//    .request(
+//      key: ".payment",
+//      dependencies: [".car", ".hotel", ".plane"],
+//      compensation: ".paymentDecline",
+//      task: PaymentTask()),
+//  ],
+//  compensations: [
+//    .compensation(
+//      key: ".carCancel",
+//      task: CarReservationCancellationTask()),
+//    .compensation(
+//      key: ".hotelCancel",
+//      task: HotelReservationCancellationTask()),
+//    .compensation(
+//      key: ".planeCancel",
+//      task: PlaneReservationCancellationTask()),
+//    .compensation(
+//      key: ".paymentDecline",
+//      task: PaymentCancellationTask()),
+//  ]
+//)
 
 struct CustomLogger: Logger { }
 let group = DispatchGroup()
 let coordinator = Coordinator(logger: CustomLogger())
 let tripData = try utils.encoder.encode(trip)
+let tripData1 = try utils.encoder.encode(trip1)
 
 group.enter()
 try coordinator.register(tripSaga, using: tripData) {
@@ -61,7 +86,7 @@ try coordinator.register(tripSaga, using: tripData) {
   group.leave()
 }
 group.enter()
-try coordinator.start(definition: tripSaga.name) {
+try coordinator.start(definition: tripSaga.name, using: tripData1) {
   print("DONE")
   group.leave()
 }

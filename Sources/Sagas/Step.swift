@@ -9,22 +9,22 @@ import Foundation
 
 public final class Step {
   enum State {
-    case `init`, started, aborted, done, compensated
+    case `init`, started, aborted, done, compensating, compensated
   }
   
   internal var state: State = .`init`
   public let key: String
   public let dependencies: [String]
   public let successors: [String]
-  public let transaction: Task.Type
-  public let compensation: Task.Type
+  public let transaction: Task
+  public let compensation: Task
   
   public init(
     key: String,
     dependencies: [String],
     successors: [String],
-    transaction: Task.Type,
-    compensation: Task.Type
+    transaction: Task,
+    compensation: Task
   ) {
     self.key = key
     self.dependencies = dependencies
