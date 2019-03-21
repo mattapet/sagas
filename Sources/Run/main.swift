@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import Sagas
 
@@ -12,6 +13,12 @@ let trip = Trip(
   car: .car(carId: 44),
   hotel: .hotel(hotelId: 194),
   plane: .plane(ticketNumber: "234 gsfdgdfsg")
+)
+let trip1 = Trip(
+  payment: .paymen(accountId: 87654),
+  car: .car(carId: 55),
+  hotel: .hotel(hotelId: 43214),
+  plane: .plane(ticketNumber: "443214 hgfdefgt")
 )
 
 let tripSaga = SagaDefinition(
@@ -44,12 +51,20 @@ let tripSaga = SagaDefinition(
 )
 
 struct CustomLogger: Logger { }
+let group = DispatchGroup()
 let coordinator = Coordinator(logger: CustomLogger())
 let tripData = try utils.encoder.encode(trip)
-coordinator.register(tripSaga, using: tripData) {
-  dumpStorage()
+
+group.enter()
+try coordinator.register(tripSaga, using: tripData) {
   print("DONE")
-  exit(0)
+  group.leave()
+}
+group.enter()
+try coordinator.start(definition: tripSaga.name) {
+  print("DONE")
+  group.leave()
 }
 
-usleep(100_000_000)
+group.wait()
+dumpStorage()

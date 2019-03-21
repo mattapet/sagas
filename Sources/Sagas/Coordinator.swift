@@ -11,6 +11,11 @@ import Foundation
 
 fileprivate var _id: Int = 1
 
+public enum CoordinatorError: Error {
+  case sagaRedefinition(String)
+  case missingDefinition(String)
+}
+
 public final class Coordinator {
   internal let produceMessage: DispatchQueue
   internal let consumeMessage: DispatchQueue
@@ -18,6 +23,7 @@ public final class Coordinator {
   internal let logger: Logger
   
   private let lock: Lock
+  private var definitions: [String:SagaDefinition]
   private var sagas: [String:Saga]
   private var completions: [String:Disposable]
   
@@ -26,6 +32,7 @@ public final class Coordinator {
     self.consumeMessage = DispatchQueue(label: "consume_message_queue")
     self.executor = Executor()
     self.lock = Lock()
+    self.definitions = [:]
     self.sagas = [:]
     self.completions = [:]
     self.logger = logger
@@ -33,13 +40,42 @@ public final class Coordinator {
 }
 
 extension Coordinator {
+  public func register(_ definition: SagaDefinition) throws {
+    try lock.withLock {
+      if let _ = definitions.updateValue(definition, forKey: definition.name) {
+        throw CoordinatorError.sagaRedefinition(definition.name)
+      }
+    }
+  }
+  
   public func register(
     _ definition: SagaDefinition,
     using payload: Data? = nil,
     with completion: @escaping () -> Void
-  ) {
-    lock.withLock {
+  ) throws {
+    try lock.withLock {
       defer { _id += 1 }
+      if let _ = definitions.updateValue(definition, forKey: definition.name) {
+        throw CoordinatorError.sagaRedefinition(definition.name)
+      }
+      let sagaId = "\(_id)"
+      let saga = Saga(sagaId: sagaId, definition: definition, payload: payload)
+      sagas[sagaId] = saga
+      completions[sagaId] = ActionDisposable(action: completion)
+      startSaga(sagaId)
+    }
+  }
+  
+  public func start(
+    definition name: String,
+    using payload: Data? = nil,
+    with completion: @escaping () -> Void
+  ) throws {
+    try lock.withLock {
+      defer { _id += 1 }
+      guard let definition = definitions[name] else {
+        throw CoordinatorError.missingDefinition(name)
+      }
       let sagaId = "\(_id)"
       let saga = Saga(sagaId: sagaId, definition: definition, payload: payload)
       sagas[sagaId] = saga
@@ -164,7 +200,6 @@ extension Coordinator {
       
     default:
       print("Ignoring \(step.key):\(step.state):\(message.type)")
-      return
     }
   }
 }
