@@ -7,26 +7,10 @@
 
 import Foundation
 
-public struct Action {
-  public let task: Task
-  public let stepKey: String
-  public let sagaId: String
-  public let payload: Data?
-  public let callback: (Result<Data?, Error>) -> Void
-}
-
-extension Action {
-  public static func from(
-    message: Message,
-    task: Task,
-    callback: @escaping (Result<Data?, Error>) -> Void
-  ) -> Action {
-    return Action(
-      task: task,
-      stepKey: message.stepKey,
-      sagaId: message.sagaId,
-      payload: message.payload,
-      callback: callback
-    )
-  }
+public protocol Action {
+  var task: Task { get }
+  var stepKey: String { get }
+  var sagaId: String { get }
+  var payload: Data? { get }
+  var callback: (Result<Data?, Error>) -> Void { get }
 }

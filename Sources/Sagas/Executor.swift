@@ -9,7 +9,12 @@ import Dispatch
 import Foundation
 
 public protocol Executor {
-  func execute(_ action: Action)
-  func handleSuccessAction(_ action: Action, payload: Data?)
-  func handleFailedAction(_ action: Action, error: Error)
+  associatedtype ActionType: Action
+  
+  func formAction(
+    task: Task,
+    from message: Message,
+    with completion: @escaping (Result<Data?, Error>) -> Void
+  ) -> ActionType
+  func execute(_ action: ActionType)
 }

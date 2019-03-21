@@ -16,18 +16,18 @@ public enum CoordinatorError: Error {
   case missingDefinition(String)
 }
 
-public final class Coordinator {
+public final class Coordinator<LoggerType: Logger, ExecutorType: Executor> {
   internal let produceMessage: DispatchQueue
   internal let consumeMessage: DispatchQueue
-  internal let executor: Executor
-  internal let logger: Logger
+  internal let executor: ExecutorType
+  internal let logger: LoggerType
   
   private let lock: Lock
   private var definitions: [String:SagaDefinition]
   private var sagas: [String:Saga]
   private var completions: [String:Disposable]
   
-  public init(logger: Logger, executor: Executor) {
+  public init(logger: LoggerType, executor: ExecutorType) {
     self.produceMessage = DispatchQueue(label: "produce_message_queue")
     self.consumeMessage = DispatchQueue(label: "consume_message_queue")
     self.executor = executor
@@ -45,6 +45,7 @@ extension Coordinator {
       if let _ = definitions.updateValue(definition, forKey: definition.name) {
         throw CoordinatorError.sagaRedefinition(definition.name)
       }
+      logger.logRegisterd(definition)
     }
   }
   
@@ -58,6 +59,7 @@ extension Coordinator {
       if let _ = definitions.updateValue(definition, forKey: definition.name) {
         throw CoordinatorError.sagaRedefinition(definition.name)
       }
+      logger.logRegisterd(definition)
       let sagaId = "\(_id)"
       let saga = Saga(sagaId: sagaId, definition: definition, payload: payload)
       sagas[sagaId] = saga
@@ -83,7 +85,15 @@ extension Coordinator {
       startSaga(sagaId)
     }
   }
-  
+}
+
+extension Coordinator where LoggerType: PersistentLogger {
+  public func restore() {
+    
+  }
+}
+
+extension Coordinator: MessageConsumable {
   public func consume(_ message: Message) {
     consumeMessage.async { [weak self] in
       self?.lock.withLock { [weak self] in
@@ -93,7 +103,9 @@ extension Coordinator {
       }
     }
   }
-  
+}
+
+extension Coordinator: MessageProduceable {
   public func produce(_ message: Message) {
     produceMessage.async { [weak self] in
       self?.consume(message)
@@ -213,26 +225,26 @@ extension Coordinator {
     _ task: Task,
     _ message: Message
   ) {
-    let action: Action = .from(message: message, task: task)
-    { [weak self] result in
-      switch result {
-      case .success(let payload):
-        self?.produce(
-          .transactionEnd(
-            sagaId: message.sagaId,
-            stepKey: message.stepKey,
-            payload: payload
+    let action = executor.formAction(task: task, from: message)
+      { [weak self] result in
+        switch result {
+        case .success:
+          self?.produce(
+            .transactionAbort(
+              sagaId: message.sagaId,
+              stepKey: message.stepKey
+            )
           )
-        )
-      case .failure:
-        self?.produce(
-          .transactionAbort(
-            sagaId: message.sagaId,
-            stepKey: message.stepKey
+        case .failure:
+          self?.produce(
+            .transactionEnd(
+              sagaId: message.sagaId,
+              stepKey: message.stepKey,
+              payload: message.payload
+            )
           )
-        )
+        }
       }
-    }
     executor.execute(action)
   }
   
@@ -272,7 +284,7 @@ extension Coordinator {
     _ task: Task,
     _ message: Message
   ) {
-    let action: Action = .from(message: message, task: task)
+    let action = executor.formAction(task: task, from: message)
       { [weak self] result in
         switch result {
         case .success:

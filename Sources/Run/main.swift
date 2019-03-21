@@ -80,6 +80,10 @@ struct CustomLogger: Logger {
     print("[LOGGER]: \(message.sagaId):\(message.type):\(message.stepKey)")
   }
 
+  public func logRegisterd(_ definition: SagaDefinition) {
+    print("[LOGGER]: SAGA DEF REGISTERED \(definition.name)")
+  }
+  
   public func logStart(_ saga: Saga) {
     print("[LOGGER]: SAGA START \(saga.name):\(saga.sagaId)")
   }
