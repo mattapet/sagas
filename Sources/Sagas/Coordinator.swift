@@ -14,6 +14,7 @@ fileprivate var _id: Int = 1
 public enum CoordinatorError: Error {
   case sagaRedefinition(String)
   case missingDefinition(String)
+  case unexpectedTransition
 }
 
 public final class Coordinator<LoggerType: Logger, ExecutorType: Executor> {
@@ -213,6 +214,39 @@ extension Coordinator {
       step.state = .compensated
       completeCompensation(step, message.sagaId)
       completeCompensation(message.sagaId)
+      
+    default:
+      print("Ignoring \(step.key):\(step.state):\(message.type)")
+    }
+  }
+  
+}
+
+extension Coordinator where LoggerType: PersistentLogger {
+  private func replay(_ message: Message, _ step: Step) {
+    switch (step.state, message.type) {
+    case (.`init`, .transactionStart):
+      step.state = .started
+      
+    case (.started, .transactionAbort):
+      step.state = .aborted
+      
+    case (.started, .transactionEnd):
+      step.state = .done
+      
+    case (.started, .compensationStart),
+         (.done, .compensationStart):
+      step.state = .compensating
+      
+    case (.compensating, .compensationStart):
+      break
+      
+    case (.`init`, .compensationStart),
+         (.aborted, .compensationStart):
+      break
+      
+    case (.compensating, .compensationEnd):
+      step.state = .compensated
       
     default:
       print("Ignoring \(step.key):\(step.state):\(message.type)")

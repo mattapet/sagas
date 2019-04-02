@@ -7,5 +7,7 @@ public protocol Logger {
 }
 
 public protocol PersistentLogger: Logger {
-  
+  func loadDefinitions() -> [SagaDefinition]
+  func loadSagas() -> [String]
+  func loadMessages(for sagaId: String) -> [Message]
 }

@@ -32,49 +32,49 @@ let planeCancelTask = PlaneReservationCancellationTask()
 let paymentTask = PaymentTask()
 let paymentCancelTask = PaymentCancellationTask()
 
-let tripSaga = SagaDefinition {
-  ("car", carTask.execute, carCancelTask.execute)
-    |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
-    |> ("plane", planeTask.execute, planeCancelTask.execute)
-    |> ("payment", paymentTask.execute, paymentCancelTask.execute)
-}
+//let tripSaga = SagaDefinition {
+//  ("car", carTask.execute, carCancelTask.execute)
+//    |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
+//    |> ("plane", planeTask.execute, planeCancelTask.execute)
+//    |> ("payment", paymentTask.execute, paymentCancelTask.execute)
+//}
 
-//let tripSaga = SagaDefinition(
-//  name: "trip_saga",
-//  requests: [
-//    .request(
-//      key: ".car",
-//      compensation: ".carCancel",
-//      task: CarReservationTask()),
-//    .request(
-//      key: ".hotel",
-//      compensation: ".hotelCancel",
-//      task: HotelReservationTask()),
-//    .request(
-//      key: ".plane",
-//      compensation: ".planeCancel",
-//      task: PlaneReservationTask()),
-//    .request(
-//      key: ".payment",
-//      dependencies: [".car", ".hotel", ".plane"],
-//      compensation: ".paymentDecline",
-//      task: PaymentTask()),
-//  ],
-//  compensations: [
-//    .compensation(
-//      key: ".carCancel",
-//      task: CarReservationCancellationTask()),
-//    .compensation(
-//      key: ".hotelCancel",
-//      task: HotelReservationCancellationTask()),
-//    .compensation(
-//      key: ".planeCancel",
-//      task: PlaneReservationCancellationTask()),
-//    .compensation(
-//      key: ".paymentDecline",
-//      task: PaymentCancellationTask()),
-//  ]
-//)
+let tripSaga = SagaDefinition(
+  name: "trip_saga",
+  requests: [
+    .request(
+      key: ".car",
+      compensation: ".carCancel",
+      task: CarReservationTask()),
+    .request(
+      key: ".hotel",
+      compensation: ".hotelCancel",
+      task: HotelReservationTask()),
+    .request(
+      key: ".plane",
+      compensation: ".planeCancel",
+      task: PlaneReservationTask()),
+    .request(
+      key: ".payment",
+      dependencies: [".car", ".hotel", ".plane"],
+      compensation: ".paymentDecline",
+      task: PaymentTask()),
+  ],
+  compensations: [
+    .compensation(
+      key: ".carCancel",
+      task: CarReservationCancellationTask()),
+    .compensation(
+      key: ".hotelCancel",
+      task: HotelReservationCancellationTask()),
+    .compensation(
+      key: ".planeCancel",
+      task: PlaneReservationCancellationTask()),
+    .compensation(
+      key: ".paymentDecline",
+      task: PaymentCancellationTask()),
+  ]
+)
 
 struct CustomLogger: Logger {
   public func log(_ message: Message) {
@@ -107,11 +107,11 @@ try coordinator.register(tripSaga, using: tripData) {
   print("DONE")
   group.leave()
 }
-group.enter()
-try coordinator.start(definition: tripSaga.name, using: tripData1) {
-  print("DONE")
-  group.leave()
-}
+//group.enter()
+//try coordinator.start(definition: tripSaga.name, using: tripData1) {
+//  print("DONE")
+//  group.leave()
+//}
 
 group.wait()
 dumpStorage()

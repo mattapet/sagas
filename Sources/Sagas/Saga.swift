@@ -58,7 +58,7 @@ extension SagaDefinition {
         next.dependencies.forEach { result[$0, default: []].insert(next.key) }
       }
     return requestMap.compactMapValues { request in
-      // At this point `compensation` must exists
+      // At this point `compensation` must exist
       let compensation = comps[request.compensation]!
       let successors = successors[request.key] ?? []
       return Step(
