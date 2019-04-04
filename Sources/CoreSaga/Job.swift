@@ -2,7 +2,7 @@
 //  Job.swift
 //  CoreSaga
 //
-//  Created by Peter Matta on 4/2/19.
+//  Created by Peter Matta on 4/4/19.
 //
 
 import Foundation
@@ -13,4 +13,3 @@ public protocol Job {
     with completion: (Result<Data?, Error>) -> Void
   )
 }
-

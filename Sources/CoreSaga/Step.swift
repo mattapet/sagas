@@ -2,17 +2,23 @@
 //  Step.swift
 //  CoreSaga
 //
-//  Created by Peter Matta on 4/2/19.
+//  Created by Peter Matta on 4/4/19.
 //
 
 import Foundation
 
 public struct Step {
   internal enum State {
-    case fresh, started, finished, aborted, compensated
+    case fresh
+    case started(Data?)
+    case aborted(Data?)
+    case completed(Data?)
+    case compensating(Data?)
+    case compensated(Data?)
   }
   
-  internal var state: State = .fresh
+  internal let state: State
+  public let sagaId: String
   public let key: String
   public let dependencies: [String]
   public let successors: [String]
@@ -20,12 +26,15 @@ public struct Step {
   public let compensation: Job
   
   public init(
+    sagaId: String,
     key: String,
     dependencies: [String],
     successors: [String],
     transaction: Job,
     compensation: Job
   ) {
+    self.state = .fresh
+    self.sagaId = sagaId
     self.key = key
     self.dependencies = dependencies
     self.successors = successors
@@ -35,14 +44,64 @@ public struct Step {
 }
 
 extension Step {
+  public var isFresh: Bool {
+    if case .fresh = state { return true }
+    else { return false }
+  }
+  
+  public var isStarted: Bool {
+    if case .started = state { return true }
+    else { return false }
+  }
+  
+  public var isAborted: Bool {
+    if case .aborted = state { return true }
+    else { return false }
+  }
+  
+  public var isCompleted: Bool {
+    if case .completed = state { return true }
+    else { return false }
+  }
+  
+  public var isCompensated: Bool {
+    if case .compensated = state { return true }
+    else { return false }
+  }
+  
+  public var isInitial: Bool {
+    return dependencies.isEmpty
+  }
+  
+  public var isTerminal: Bool {
+    return successors.isEmpty
+  }
+  
+  public var data: Data? {
+    switch state {
+    case .fresh: return nil
+    case .started(let data),
+         .aborted(let data),
+         .completed(let data),
+         .compensating(let data),
+         .compensated(let data):
+      return data
+    }
+  }
+}
+
+extension Step {
   fileprivate init(
     state: State,
+    sagaId: String,
     key: String,
     dependencies: [String],
     successors: [String],
     transaction: Job,
     compensation: Job
   ) {
+    self.state = state
+    self.sagaId = sagaId
     self.key = key
     self.dependencies = dependencies
     self.successors = successors
@@ -50,9 +109,10 @@ extension Step {
     self.compensation = compensation
   }
   
-  public func started() -> Step {
+  public func started(payload: Data? = nil) -> Step {
     return Step(
-      state: .started,
+      state: .started(payload),
+      sagaId: sagaId,
       key: key,
       dependencies: dependencies,
       successors: successors,
@@ -61,9 +121,10 @@ extension Step {
     )
   }
   
-  public func finished() -> Step {
+  public func aborted(payload: Data? = nil) -> Step {
     return Step(
-      state: .finished,
+      state: .aborted(payload),
+      sagaId: sagaId,
       key: key,
       dependencies: dependencies,
       successors: successors,
@@ -72,9 +133,10 @@ extension Step {
     )
   }
   
-  public func aborted() -> Step {
+  public func completed(payload: Data? = nil) -> Step {
     return Step(
-      state: .aborted,
+      state: .completed(payload),
+      sagaId: sagaId,
       key: key,
       dependencies: dependencies,
       successors: successors,
@@ -83,9 +145,10 @@ extension Step {
     )
   }
   
-  public func compensated() -> Step {
+  public func compensating(payload: Data? = nil) -> Step {
     return Step(
-      state: .compensated,
+      state: .compensating(payload),
+      sagaId: sagaId,
       key: key,
       dependencies: dependencies,
       successors: successors,
@@ -93,10 +156,16 @@ extension Step {
       compensation: compensation
     )
   }
-}
-
-extension Step: Identifiable {
-  public static var IDKeyPath: KeyPath<Step, String> {
-    return \Step.key
+  
+  public func compensated(payload: Data? = nil) -> Step {
+    return Step(
+      state: .compensated(payload),
+      sagaId: sagaId,
+      key: key,
+      dependencies: dependencies,
+      successors: successors,
+      transaction: transaction,
+      compensation: compensation
+    )
   }
 }

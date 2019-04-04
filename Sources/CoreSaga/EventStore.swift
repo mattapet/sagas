@@ -2,24 +2,20 @@
 //  EventStore.swift
 //  CoreSaga
 //
-//  Created by Peter Matta on 4/2/19.
+//  Created by Peter Matta on 4/4/19.
 //
 
 import Foundation
 
 public protocol EventStore {
-  associatedtype Aggregate: Identifiable
-  associatedtype Event: Codable
-  
   func load(
-    byId: Aggregate.ID,
-    with completion: @escaping (Result<[Event], Error>) -> Void
+    for saga: Saga,
+    with completion: (Result<[Event], Error>) -> Void
   )
   
-  func save(
-    event: Event,
-    for aggregate: Aggregate,
-    with completion: @escaping (Result<Aggregate, Error>) -> Void
+  func store(
+    _ events: [Event],
+    for saga: Saga,
+    with completion: (Result<(), Error>) -> Void
   )
 }
-
