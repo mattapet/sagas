@@ -8,17 +8,17 @@
 import Basic
 import Foundation
 
-public final class StepRepository<StepEventStore: EventStore>
-  where StepEventStore.Aggregate == Step, StepEventStore.Event == StepEvent
+public final class StepRepository<StepStore: EventStore>
+  where StepStore.Aggregate == Step, StepStore.Event == StepEvent
 {
-  internal let store: StepEventStore
-  internal let eventHandler: StepEventHandler
-  internal let commandHandler: StepCommandHandler
+  internal let store: StepStore
+  internal let eventHandler: StepEventHandler<StepStore>
+  internal let commandHandler: StepCommandHandler<StepStore>
   
   public init(
-    store: StepEventStore,
-    eventHandler: StepEventHandler,
-    commandHandler: StepCommandHandler
+    store: StepStore,
+    eventHandler: StepEventHandler<StepStore>,
+    commandHandler: StepCommandHandler<StepStore>
   ) {
     self.store = store
     self.eventHandler = eventHandler
@@ -31,17 +31,16 @@ public final class StepRepository<StepEventStore: EventStore>
   ) {
     completion(Result {
       let events = try await(step.key, store.load)
-      try events.forEach { event in
-        try await(event, step, eventHandler.apply)
+      return try events.reduce(step) { step, event in
+        return try await(event, step, eventHandler.apply)
       }
-      return step
     })
   }
   
   public func executeCommand(
     _ step: Step,
     _ command: StepCommand,
-    with completion: (Result<(), Error>) -> Void
+    with completion: (Result<Action?, Error>) -> Void
   ) {
     completion(Result {
       try await(command, step, commandHandler.apply)

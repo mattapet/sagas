@@ -8,14 +8,16 @@
 import Basic
 import Foundation
 
-public final class SagaCommandHandler: CommandHandler {
+public final class SagaCommandHandler<SagaStore: EventStore>: CommandHandler
+  where SagaStore.Aggregate == Saga, SagaStore.Event == SagaEvent
+{
   public typealias Aggregate = Saga
   public typealias Command = SagaCommand
   public typealias ResultType = [StepCommand]
   
-  internal let handler: SagaEventHandler
+  internal let handler: SagaEventHandler<SagaStore>
   
-  public init(handler: SagaEventHandler) {
+  public init(handler: SagaEventHandler<SagaStore>) {
     self.handler = handler
   }
   
@@ -24,16 +26,18 @@ public final class SagaCommandHandler: CommandHandler {
     to saga: Saga,
     with completion: @escaping (Result<ResultType, Error>) -> Void
   ) {
-    switch command.type {
-    case .start:
-      completion(Result { try start(saga) })
-    case .abort:
-      completion(Result { try abort(saga) })
-    case .compensate:
-      completion(Result { try compensate(saga) })
-    case .finish:
-      completion(Result { try finish(saga) })
-    }
+    completion(Result {
+      switch command.type {
+      case .start:
+        return try start(saga)
+      case .abort:
+        return try abort(saga)
+      case .compensate:
+        return try compensate(saga)
+      case .finish:
+        return try finish(saga)
+      }
+    })
   }
   
   private func start(_ saga: Saga) throws -> ResultType {

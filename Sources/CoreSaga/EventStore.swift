@@ -19,7 +19,7 @@ public protocol EventStore {
   func save(
     event: Event,
     for aggregate: Aggregate,
-    with completion: @escaping (Result<[Event], Error>) -> Void
+    with completion: @escaping (Result<Aggregate, Error>) -> Void
   )
 }
 

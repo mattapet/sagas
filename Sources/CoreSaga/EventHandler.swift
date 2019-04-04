@@ -14,7 +14,7 @@ public protocol EventHandler {
   func apply(
     _ event: Event,
     to aggregate: Aggregate,
-    with completion: @escaping (Result<(), Error>) -> Void
+    with completion: @escaping (Result<Aggregate, Error>) -> Void
   )
 }
 
