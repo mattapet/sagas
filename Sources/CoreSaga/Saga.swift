@@ -35,6 +35,14 @@ public struct Saga {
 }
 
 extension Saga {
+  public var initial: [Step] {
+    return steps.values.filter { $0.isInitial }
+  }
+  
+  public var terminal: [Step] {
+    return steps.values.filter { $0.isTerminal }
+  }
+  
   public func stepUpdated(_ step: Step) -> Saga {
     return Saga(
       state: state,
@@ -44,8 +52,30 @@ extension Saga {
   }
   
   public func step(for stepKey: String) throws -> Step {
-    guard let step = steps[stepKey] else { throw SagaError.invalidKeyId }
-    return step
+    switch steps[stepKey] {
+    case .some(let step): return step
+    case .none: throw SagaError.invalidKeyId
+    }
+  }
+}
+
+extension Saga {
+  public func stepsToStart() throws -> [Step] {
+    precondition(state == .fresh || state == .started)
+    func stepsToStart(from step: Step) throws -> [Step] {
+      if step.isFresh { return [step] }
+      return try step.successors.map(self.step).flatMap(stepsToStart)
+    }
+    return try initial.flatMap(stepsToStart)
+  }
+  
+  public func stepsToCompensate() throws -> [Step] {
+    precondition(state == .aborted)
+    func stepsToCompensate(from step: Step) throws -> [Step] {
+      if !step.isCompleted || !step.isStarted { return [step] }
+      return try step.dependencies.map(self.step).flatMap(stepsToCompensate)
+    }
+    return try terminal.flatMap(stepsToCompensate)
   }
 }
 

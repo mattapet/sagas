@@ -17,11 +17,18 @@ public final class CommandHandler {
     switch (saga.state, command.type) {
     case (.fresh, .startSaga):
       return [.sagaStarted(sagaId: saga.sagaId)]
+      
     case (.started, .abortSaga):
       return [.sagaAborted(sagaId: saga.sagaId)]
+      
     case (.started, .completeSaga),
          (.aborted, .completeSaga):
       return [.sagaCompleted(sagaId: saga.sagaId)]
+      
+    case (.started, .startSaga),
+         (.aborted, .abortSaga),
+         (.completed, .completeSaga):
+      return [] // Ensure idempotency
       
     case (.started, .startTransaction),
          (.started, .retryTransaction),
@@ -35,13 +42,18 @@ public final class CommandHandler {
       else { throw ComamndHandlerError.invalidStepKey }
       return events
 
-    case (.completed, _),
+    case (.completed, .startSaga),
+         (.completed, .abortSaga),
+         (.completed, .startTransaction),
+         (.completed, .retryTransaction),
+         (.completed, .completeTransaction),
+         (.completed, .startCompensation),
+         (.completed, .retryCompensation),
+         (.completed, .completeCompensation),
          (.aborted, .startSaga),
-         (.aborted, .abortSaga),
          (.aborted, .startTransaction),
          (.aborted, .retryTransaction),
          (.aborted, .completeTransaction),
-         (.started, .startSaga),
          (.started, .startCompensation),
          (.started, .retryCompensation),
          (.started, .completeCompensation),
@@ -69,7 +81,7 @@ public final class CommandHandler {
           payload: command.payload
         )
       ]
-
+      
     case (.started, .retryTransaction):
       return []
 

@@ -17,7 +17,6 @@ public enum ServiceError: Error {
 public final class Service<Store: EventStore> {
   private let lock: Lock
   private let queue: DispatchQueue
-  private let worker: DispatchQueue
   
   private var sagas: [String:Saga]
   private var completions: [String:Disposable]
@@ -27,7 +26,6 @@ public final class Service<Store: EventStore> {
   public init(repository: Repository<Store>) {
     self.lock = Lock()
     self.queue = DispatchQueue(label: "service-queue")
-    self.worker = DispatchQueue(label: "worker-queue")
     self.sagas = [:]
     self.completions = [:]
     self.repository = repository
@@ -42,6 +40,22 @@ extension Service {
     }
     queue.async { [weak self] in
       try? self?.startSaga(saga.sagaId)
+    }
+  }
+  
+  public func restart(saga: Saga, with completion: Disposable) throws {
+    try lock.withLock {
+      let saga = try repository.query(saga)
+      sagas[saga.sagaId] = saga
+      completions[saga.sagaId] = completion
+    }
+    queue.async { [weak self] in
+      switch saga.state {
+      case .fresh: try? self?.startSaga(saga.sagaId)
+      case .started: try? self?.startSaga(saga.sagaId)
+      case .aborted: try? self?.abortSaga(saga.sagaId)
+      case .completed: try? self?.completeSaga(saga.sagaId)
+      }
     }
   }
 }
@@ -64,8 +78,7 @@ extension Service {
   private func startSaga(_ sagaId: String) throws {
     try lock.withLock {
       let saga = try sagaFor(sagaId, executing: .startSaga(sagaId: sagaId))
-      saga.steps.values
-        .filter { $0.isInitial }
+      try saga.stepsToStart()
         .forEach { step in
           queue.async { [weak self] in
             try? self?.startTransaction(sagaId: sagaId, stepKey: step.key)
@@ -77,7 +90,7 @@ extension Service {
   private func abortSaga(_ sagaId: String) throws {
     try lock.withLock {
       let saga = try sagaFor(sagaId, executing: .abortSaga(sagaId: sagaId))
-      saga.steps.values
+      try saga.stepsToCompensate()
         .filter { $0.isTerminal }
         .forEach { step in
           queue.async { [weak self] in
@@ -112,7 +125,7 @@ extension Service {
         payload: payload))
 
       let step = try saga.step(for: stepKey)
-      worker.async { [weak self] in
+      DispatchQueue.global().async { [weak self] in
         do {
           let result = try await(payload, step.transaction.execute)
           self?.queue.async { [weak self] in
@@ -202,7 +215,7 @@ extension Service {
         payload: payload))
       
       let step = try saga.step(for: stepKey)
-      worker.async { [weak self] in
+      DispatchQueue.global().async { [weak self] in
         do {
           let result = try await(payload, step.transaction.execute)
           self?.queue.async { [weak self] in
@@ -238,7 +251,7 @@ extension Service {
         stepKey: stepKey))
       
       let step = try saga.step(for: stepKey)
-      worker.async { [weak self] in
+      DispatchQueue.global().async { [weak self] in
         do {
           let result = try await(payload, step.transaction.execute)
           self?.queue.async { [weak self] in

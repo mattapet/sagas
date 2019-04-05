@@ -7,8 +7,8 @@
 
 import Foundation
 
-public struct Event {
-  public enum EventType {
+public struct Event: Codable {
+  public enum EventType: String, Codable {
     case sagaStarted
     case sagaAborted
     case sagaCompleted
