@@ -6,7 +6,7 @@
 //
 
 import Basic
-import Sagas
+import CoreSaga
 import Foundation
 
 public protocol PaymentExecutable {
@@ -39,7 +39,7 @@ extension PaymentExecutable {
   }
 }
 
-public struct PaymentTask: Sagas.Task {
+public struct PaymentTask: Job {
   public init() { }
   
   public func execute(
@@ -58,7 +58,7 @@ public struct PaymentTask: Sagas.Task {
   }
 }
 
-public struct PaymentCancellationTask: Sagas.Task {
+public struct PaymentCancellationTask: Job {
   public init() { }
   
   public func execute(

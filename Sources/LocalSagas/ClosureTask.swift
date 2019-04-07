@@ -8,7 +8,7 @@
 import CoreSaga
 import Foundation
 
-public protocol ClosureJob: Sagas.Task {
+public protocol ClosureJob: Job {
   var closure: (Data?, (Result<Data?, Error>) -> Void) -> Void { get }
 }
 
@@ -21,6 +21,6 @@ extension ClosureJob {
   }
 }
 
-public struct BasicTask: ClosureJob {
+public struct BasicJob: ClosureJob {
   public let closure: (Data?, (Result<Data?, Error>) -> Void) -> Void
 }

@@ -1,7 +1,7 @@
 import Basic
 import Dispatch
 import Foundation
-import Sagas
+import CoreSaga
 import LocalSagas
 import Trips
 
@@ -32,78 +32,106 @@ let planeCancelTask = PlaneReservationCancellationTask()
 let paymentTask = PaymentTask()
 let paymentCancelTask = PaymentCancellationTask()
 
-//let tripSaga = SagaDefinition {
-//  ("car", carTask.execute, carCancelTask.execute)
-//    |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
-//    |> ("plane", planeTask.execute, planeCancelTask.execute)
-//    |> ("payment", paymentTask.execute, paymentCancelTask.execute)
-//}
+let tripSaga = SagaDefinition {
+  ("car", carTask.execute, carCancelTask.execute)
+    |> ("hotel", hotelTask.execute, hotelCancelTask.execute)
+    |> ("plane", planeTask.execute, planeCancelTask.execute)
+    |> ("payment", paymentTask.execute, paymentCancelTask.execute)
+}
 
-let tripSaga = SagaDefinition(
-  name: "trip_saga",
-  requests: [
-    .request(
-      key: ".car",
-      compensation: ".carCancel",
-      task: CarReservationTask()),
-    .request(
-      key: ".hotel",
-      compensation: ".hotelCancel",
-      task: HotelReservationTask()),
-    .request(
-      key: ".plane",
-      compensation: ".planeCancel",
-      task: PlaneReservationTask()),
-    .request(
-      key: ".payment",
-      dependencies: [".car", ".hotel", ".plane"],
-      compensation: ".paymentDecline",
-      task: PaymentTask()),
-  ],
-  compensations: [
-    .compensation(
-      key: ".carCancel",
-      task: CarReservationCancellationTask()),
-    .compensation(
-      key: ".hotelCancel",
-      task: HotelReservationCancellationTask()),
-    .compensation(
-      key: ".planeCancel",
-      task: PlaneReservationCancellationTask()),
-    .compensation(
-      key: ".paymentDecline",
-      task: PaymentCancellationTask()),
-  ]
-)
+//let tripSaga = SagaDefinition(
+//  name: "trip_saga",
+//  requests: [
+//    .request(
+//      key: ".car",
+//      compensation: ".carCancel",
+//      task: CarReservationTask()),
+//    .request(
+//      key: ".hotel",
+//      compensation: ".hotelCancel",
+//      task: HotelReservationTask()),
+//    .request(
+//      key: ".plane",
+//      compensation: ".planeCancel",
+//      task: PlaneReservationTask()),
+//    .request(
+//      key: ".payment",
+//      dependencies: [".car", ".hotel", ".plane"],
+//      compensation: ".paymentDecline",
+//      task: PaymentTask()),
+//  ],
+//  compensations: [
+//    .compensation(
+//      key: ".carCancel",
+//      task: CarReservationCancellationTask()),
+//    .compensation(
+//      key: ".hotelCancel",
+//      task: HotelReservationCancellationTask()),
+//    .compensation(
+//      key: ".planeCancel",
+//      task: PlaneReservationCancellationTask()),
+//    .compensation(
+//      key: ".paymentDecline",
+//      task: PaymentCancellationTask()),
+//  ]
+//)
 
-struct CustomLogger: Logger {
-  public func log(_ message: Message) {
-    print("[LOGGER]: \(message.sagaId):\(message.type):\(message.stepKey)")
+final class CustomEventStore: EventStore {
+  private let filename: String
+  private var _storage: [String:[Event]] = [:]
+  
+  init(filename: String) {
+    self.filename = filename
+    do {
+      self._storage =
+        try utils.decoder.decode(
+          [String:[Event]].self,
+          from: try Data(contentsOf:
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+              .appendingPathComponent(filename)))
+    } catch {
+      self._storage = [:]
+    }
+  }
+
+  func saveToFile() {
+    try! utils.encoder.encode(_storage).write(to:
+      URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        .appendingPathComponent(filename))
   }
   
-  public func logRegisterd(_ definition: SagaDefinition) {
-    print("[LOGGER]: SAGA DEF REGISTERED \(definition.name)")
+  func load(
+    for saga: Saga,
+    with completion: (Result<[Event], Error>) -> Void
+  ) {
+    completion(Result { _storage[saga.sagaId] ?? [] })
+    print("\(saga.sagaId):\(saga.state)")
   }
   
-  public func logStart(_ saga: Saga) {
-    print("[LOGGER]: SAGA START \(saga.name):\(saga.sagaId)")
-  }
-  
-  public func logAbort(_ saga: Saga) {
-    print("[LOGGER]: SAGA ABORT \(saga.name):\(saga.sagaId)")
-  }
-  
-  public func logEnd(_ saga: Saga) {
-    print("[LOGGER]: SAGA END \(saga.name):\(saga.sagaId)")
+  func store(
+    _ events: [Event],
+    for saga: Saga, 
+    with completion: (Result<(), Error>) -> Void
+  ) {
+    print("\(saga.sagaId):\(events)")
+    completion(Result {
+      _storage[saga.sagaId, default: []].append(contentsOf: events)
+    })
   }
 }
+
 let group = DispatchGroup()
-let coordinator = Coordinator(logger: CustomLogger(), executor: BasicExecutor())
+let eventHandler = EventHandler()
+let commandHandler = CommandHandler()
+let store = CustomEventStore(filename: "storage.json")
+let repository = Repository(store: store, eventHandler: eventHandler, commandHandler: commandHandler)
+let coordinator = Service(repository: repository)
+
 let tripData = try utils.encoder.encode(trip)
 let tripData1 = try utils.encoder.encode(trip1)
 
 group.enter()
-try coordinator.register(tripSaga, using: tripData) {
+coordinator.register(definition: tripSaga, using: tripData) {
   print("DONE")
   group.leave()
 }
@@ -115,3 +143,4 @@ try coordinator.register(tripSaga, using: tripData) {
 
 group.wait()
 dumpStorage()
+store.saveToFile()

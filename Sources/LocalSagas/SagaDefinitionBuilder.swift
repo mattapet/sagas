@@ -5,7 +5,7 @@
 //  Created by Peter Matta on 3/21/19.
 //
 
-import Sagas
+import CoreSaga
 import Foundation
 
 public final class SagaDefinitionBuilder {
@@ -41,7 +41,7 @@ extension SagaDefinitionBuilder {
           .request(
             key: name,
             compensation: compensations.last!.key,
-            task: BasicTask(closure: transaction)
+            task: BasicJob(closure: transaction)
           )
       )
     }
@@ -66,7 +66,7 @@ extension SagaDefinitionBuilder {
           key: name,
           dependencies: [previous],
           compensation: compensations.last!.key,
-          task: BasicTask(closure: transaction)
+          task: BasicJob(closure: transaction)
         )
     )
   }
@@ -174,7 +174,7 @@ extension Request {
       key: key,
       dependencies: dependencies,
       compensation: compensation,
-      task: BasicTask(closure: task)
+      task: BasicJob(closure: task)
     )
   }
   
@@ -186,7 +186,7 @@ extension Request {
     return request(
       key: key,
       compensation: compensation,
-      task: BasicTask(closure: task)
+      task: BasicJob(closure: task)
     )
   }
 }
@@ -198,7 +198,7 @@ extension Compensation {
     let key = UUID().uuidString
     return compensation(
       key: key,
-      task: BasicTask(closure: task)
+      task: BasicJob(closure: task)
     )
   }
 }

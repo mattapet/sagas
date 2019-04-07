@@ -6,10 +6,10 @@
 //
 
 import Basic
-import Sagas
+import CoreSaga
 import Foundation
 
-public struct CarReservationTask: Sagas.Task {
+public struct CarReservationTask: Job {
   public init() { }
   
   public func execute(
@@ -38,7 +38,7 @@ public struct CarReservationTask: Sagas.Task {
   }
 }
 
-public struct CarReservationCancellationTask: Sagas.Task {
+public struct CarReservationCancellationTask: Job {
   public init() { }
   
   public func execute(
