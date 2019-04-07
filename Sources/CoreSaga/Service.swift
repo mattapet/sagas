@@ -33,13 +33,28 @@ public final class Service<Store: EventStore> {
 }
 
 extension Service {
+  public func register(
+    definition: SagaDefinition,
+    using payload: Data? = nil,
+    with completion: @escaping () -> Void
+  ) {
+    let saga = Saga(definition: definition, payload: payload)
+    lock.withLock {
+      sagas[saga.sagaId] = saga
+      completions[saga.sagaId] = ActionDisposable(action: completion)
+    }
+    queue.async { [weak self] in
+      try! self?.startSaga(saga.sagaId)
+    }
+  }
+  
   public func register(saga: Saga, with completion: Disposable) {
     lock.withLock {
       sagas[saga.sagaId] = saga
       completions[saga.sagaId] = completion
     }
     queue.async { [weak self] in
-      try? self?.startSaga(saga.sagaId)
+      try! self?.startSaga(saga.sagaId)
     }
   }
   
@@ -51,10 +66,10 @@ extension Service {
     }
     queue.async { [weak self] in
       switch saga.state {
-      case .fresh: try? self?.startSaga(saga.sagaId)
-      case .started: try? self?.startSaga(saga.sagaId)
-      case .aborted: try? self?.abortSaga(saga.sagaId)
-      case .completed: try? self?.completeSaga(saga.sagaId)
+      case .fresh: try! self?.startSaga(saga.sagaId)
+      case .started: try! self?.startSaga(saga.sagaId)
+      case .aborted: try! self?.abortSaga(saga.sagaId)
+      case .completed: try! self?.completeSaga(saga.sagaId)
       }
     }
   }
@@ -81,22 +96,32 @@ extension Service {
       try saga.stepsToStart()
         .forEach { step in
           queue.async { [weak self] in
-            try? self?.startTransaction(sagaId: sagaId, stepKey: step.key)
+            try! self?.startTransaction(
+              sagaId: sagaId,
+              stepKey: step.key,
+              payload: saga.payload
+            )
           }
         }
     }
   }
   
   private func abortSaga(_ sagaId: String) throws {
-    try lock.withLock {
+    try lock.withLock { () -> Void in
       let saga = try sagaFor(sagaId, executing: .abortSaga(sagaId: sagaId))
-      try saga.stepsToCompensate()
-        .filter { $0.isTerminal }
-        .forEach { step in
-          queue.async { [weak self] in
-            try? self?.startTransaction(sagaId: sagaId, stepKey: step.key)
-          }
+      let toCompensate = try saga.stepsToCompensate()
+      guard !toCompensate.isEmpty else {
+        return queue.async { [weak self] in try! self?.completeSaga(sagaId) }
+      }
+      toCompensate.forEach { step in
+        queue.async { [weak self] in
+          try! self?.startCompensation(
+            sagaId: sagaId,
+            stepKey: step.key,
+            payload: saga.payload
+          )
         }
+      }
     }
   }
   
@@ -124,12 +149,12 @@ extension Service {
         stepKey: stepKey,
         payload: payload))
 
-      let step = try saga.step(for: stepKey)
+      let step = try saga.stepFor(stepKey)
       DispatchQueue.global().async { [weak self] in
         do {
           let result = try await(payload, step.transaction.execute)
           self?.queue.async { [weak self] in
-            try? self?.completeTransaction(
+            try! self?.completeTransaction(
               sagaId: sagaId,
               stepKey: stepKey,
               payload: result
@@ -137,9 +162,9 @@ extension Service {
           }
           
         } catch let error {
-          print("\(error)")
+          print("Transaction failed: \(error)")
           self?.queue.async { [weak self] in
-            try? self?.abortTransaction(sagaId: sagaId, stepKey: stepKey)
+            try! self?.abortTransaction(sagaId: sagaId, stepKey: stepKey)
           }
         }
       }
@@ -157,7 +182,7 @@ extension Service {
         stepKey: stepKey,
         payload: payload))
       queue.async { [weak self] in
-        try? self?.abortSaga(sagaId)
+        try! self?.abortSaga(sagaId)
       }
     }
   }
@@ -175,26 +200,26 @@ extension Service {
       
       if saga.steps.values.allSatisfy({ $0.isCompleted }) {
         return queue.async { [weak self] in
-          try? self?.completeSaga(sagaId)
+          try! self?.completeSaga(sagaId)
         }
       }
       
-      let step = try saga.step(for: stepKey)
+      let step = try saga.stepFor(stepKey)
       let successors = try step.successors
-        .map { try saga.step(for: $0) }
+        .map { try saga.stepFor($0) }
         .filter { $0.isFresh }
         .filter {
           try $0.dependencies
-            .map { try saga.step(for: $0) }
+            .map { try saga.stepFor($0) }
             .allSatisfy { $0.isCompleted }
         }
 
       successors.forEach { successor in
         queue.async { [weak self] in
-          try? self?.startTransaction(
+          try! self?.startTransaction(
             sagaId: sagaId,
             stepKey: successor.key,
-            payload: step.data
+            payload: saga.payload ?? step.data
           )
         }
       }
@@ -214,12 +239,12 @@ extension Service {
         stepKey: stepKey,
         payload: payload))
       
-      let step = try saga.step(for: stepKey)
+      let step = try saga.stepFor(stepKey)
       DispatchQueue.global().async { [weak self] in
         do {
-          let result = try await(payload, step.transaction.execute)
+          let result = try await(payload, step.compensation.execute)
           self?.queue.async { [weak self] in
-            try? self?.completeCompensation(
+            try! self?.completeCompensation(
               sagaId: sagaId,
               stepKey: stepKey,
               payload: result
@@ -229,10 +254,10 @@ extension Service {
         } catch let error {
           print("\(error)")
           self?.queue.async { [weak self] in
-            try? self?.retryCompensation(
+            try! self?.retryCompensation(
               sagaId: sagaId,
               stepKey: stepKey,
-              payload: payload
+              payload: saga.payload ?? payload
             )
           }
         }
@@ -250,12 +275,12 @@ extension Service {
         sagaId: sagaId,
         stepKey: stepKey))
       
-      let step = try saga.step(for: stepKey)
+      let step = try saga.stepFor(stepKey)
       DispatchQueue.global().async { [weak self] in
         do {
-          let result = try await(payload, step.transaction.execute)
+          let result = try await(payload, step.compensation.execute)
           self?.queue.async { [weak self] in
-            try? self?.completeTransaction(
+            try! self?.completeCompensation(
               sagaId: sagaId,
               stepKey: stepKey,
               payload: result
@@ -265,10 +290,10 @@ extension Service {
         } catch let error {
           print("\(error)")
           self?.queue.async { [weak self] in
-            try? self?.retryCompensation(
+            try! self?.retryCompensation(
               sagaId: sagaId,
               stepKey: stepKey,
-              payload: payload
+              payload: saga.payload ?? payload
             )
           }
         }
@@ -289,26 +314,26 @@ extension Service {
       
       if saga.steps.values.allSatisfy({ !$0.isStarted || !$0.isCompleted }) {
         return queue.async { [weak self] in
-          try? self?.completeSaga(sagaId)
+          try! self?.completeSaga(sagaId)
         }
       }
       
-      let step = try saga.step(for: stepKey)
+      let step = try saga.stepFor(stepKey)
       let successors = try step.dependencies
-        .map { try saga.step(for: $0) }
+        .map { try saga.stepFor($0) }
         .filter { $0.isFresh }
         .filter {
           try $0.successors
-            .map { try saga.step(for: $0) }
+            .map { try saga.stepFor($0) }
             .allSatisfy { !$0.isStarted || !$0.isCompleted }
       }
       
       successors.forEach { successor in
         queue.async { [weak self] in
-          try? self?.startCompensation(
+          try! self?.startCompensation(
             sagaId: sagaId,
             stepKey: successor.key,
-            payload: step.data
+            payload: saga.payload ?? step.data
           )
         }
       }

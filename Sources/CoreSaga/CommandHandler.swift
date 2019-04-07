@@ -13,6 +13,8 @@ public enum ComamndHandlerError: Error {
 }
 
 public final class CommandHandler {
+  public init() {}
+  
   public func handle(_ command: Command, on saga: Saga) throws -> [Event] {
     switch (saga.state, command.type) {
     case (.fresh, .startSaga):
@@ -31,6 +33,7 @@ public final class CommandHandler {
       return [] // Ensure idempotency
       
     case (.started, .startTransaction),
+         (.started, .abortTransaction),
          (.started, .retryTransaction),
          (.started, .completeTransaction),
          (.aborted, .startCompensation),
@@ -45,6 +48,7 @@ public final class CommandHandler {
     case (.completed, .startSaga),
          (.completed, .abortSaga),
          (.completed, .startTransaction),
+         (.completed, .abortTransaction),
          (.completed, .retryTransaction),
          (.completed, .completeTransaction),
          (.completed, .startCompensation),
@@ -52,6 +56,7 @@ public final class CommandHandler {
          (.completed, .completeCompensation),
          (.aborted, .startSaga),
          (.aborted, .startTransaction),
+         (.aborted, .abortTransaction),
          (.aborted, .retryTransaction),
          (.aborted, .completeTransaction),
          (.started, .startCompensation),
@@ -60,12 +65,13 @@ public final class CommandHandler {
          (.fresh, .abortSaga),
          (.fresh, .completeSaga),
          (.fresh, .startTransaction),
+         (.fresh, .abortTransaction),
          (.fresh, .retryTransaction),
          (.fresh, .completeTransaction),
          (.fresh, .startCompensation),
          (.fresh, .retryCompensation),
-         (.fresh, .completeCompensation),
-         (_, .abortTransaction):
+         (.fresh, .completeCompensation):
+      print("\(saga.sagaId):\(saga.state):\(command)")
       throw ComamndHandlerError.invalidCommandApplication
     }
   }
@@ -82,6 +88,14 @@ public final class CommandHandler {
         )
       ]
       
+    case (.started, .abortTransaction):
+      return [
+        .transactionAborted(
+          sagaId: command.sagaId,
+          stepKey: step.key,
+          payload: command.payload)
+      ]
+      
     case (.started, .retryTransaction):
       return []
 
@@ -94,7 +108,8 @@ public final class CommandHandler {
         )
       ]
 
-    case (.aborted, .startCompensation):
+    case (.completed, .startCompensation),
+         (.started, .startCompensation):
       return [
         .compensationStarted(
           sagaId: command.sagaId,
@@ -103,10 +118,10 @@ public final class CommandHandler {
         )
       ]
 
-    case (.aborted, .retryCompensation):
+    case (.compensating, .retryCompensation):
       return []
       
-    case (.aborted, .completeCompensation):
+    case (.compensating, .completeCompensation):
       return [
         .compensationCompleted(
           sagaId: command.sagaId,

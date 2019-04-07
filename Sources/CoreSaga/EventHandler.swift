@@ -12,6 +12,8 @@ public enum EventHandlerError: Error {
 }
 
 public final class EventHandler {
+  public init() { }
+
   public func apply(_ event: Event, to saga: Saga) throws  -> Saga {
     switch event.type {
     case .sagaStarted:
