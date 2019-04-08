@@ -46,6 +46,7 @@ public struct CarReservationCancellationTask: Job {
     with completion: (Result<Data?, Error>) -> Void
   ) {
     completion(Result { () -> Data? in
+//      throw StorageError.internalFailue
       guard let payload = payload else { throw TripError.invalidHotelPayload }
       let trip = try utils.decoder.decode(Trip.self, from: payload)
       try cancelReservation(for: trip.car, withTripId: trip.tripId)

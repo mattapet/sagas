@@ -25,8 +25,8 @@ public final class Repository<Store: EventStore> {
   }
   
   public func query(_ saga: Saga) throws -> Saga {
-    return try await(saga, store.load).reduce(saga) {
-      return try eventHandler.apply($1, to: $0)
+    return try await(saga, store.load).reduce(saga) { saga, event in
+      return try eventHandler.apply(event, to: saga)
     }
   }
   

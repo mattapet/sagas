@@ -8,8 +8,11 @@
 import Foundation
 
 extension Saga {
-  public init(definition: SagaDefinition, payload: Data? = nil) {
-    let sagaId = UUID().uuidString
+  public init(
+    sagaId: String = UUID().uuidString,
+    definition: SagaDefinition,
+    payload: Data? = nil
+  ) {
     let reqMap = definition.requestMap
     let compMap = definition.compensationMap
     precondition(reqMap.count == definition.requests.count)

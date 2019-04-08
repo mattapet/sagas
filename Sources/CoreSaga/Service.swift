@@ -18,6 +18,7 @@ public final class Service<Store: EventStore> {
   private let lock: Lock
   private let queue: DispatchQueue
   
+  private var retries: [String:Int] = [:]
   private var sagas: [String:Saga]
   private var completions: [String:Disposable]
   
@@ -44,32 +45,38 @@ extension Service {
       completions[saga.sagaId] = ActionDisposable(action: completion)
     }
     queue.async { [weak self] in
-      try! self?.startSaga(saga.sagaId)
+      try! self?.startSaga(saga.sagaId, payload: payload)
     }
   }
   
-  public func register(saga: Saga, with completion: Disposable) {
+  public func register(
+    saga: Saga,
+    with completion: @escaping () -> Void
+  ) {
     lock.withLock {
       sagas[saga.sagaId] = saga
-      completions[saga.sagaId] = completion
+      completions[saga.sagaId] = ActionDisposable(action: completion)
     }
     queue.async { [weak self] in
-      try! self?.startSaga(saga.sagaId)
+      try! self?.startSaga(saga.sagaId, payload: saga.payload)
     }
   }
   
-  public func restart(saga: Saga, with completion: Disposable) throws {
+  public func restart(
+    saga: Saga,
+    with completion: @escaping () -> Void
+  ) throws {
     try lock.withLock {
       let saga = try repository.query(saga)
       sagas[saga.sagaId] = saga
-      completions[saga.sagaId] = completion
-    }
-    queue.async { [weak self] in
-      switch saga.state {
-      case .fresh: try! self?.startSaga(saga.sagaId)
-      case .started: try! self?.startSaga(saga.sagaId)
-      case .aborted: try! self?.abortSaga(saga.sagaId)
-      case .completed: try! self?.completeSaga(saga.sagaId)
+      completions[saga.sagaId] = ActionDisposable(action: completion)
+      queue.async { [weak self] in
+        switch saga.state {
+        case .fresh: try! self?.startSaga(saga.sagaId, payload: saga.payload)
+        case .started: try! self?.startSaga(saga.sagaId)
+        case .aborted: try! self?.abortSaga(saga.sagaId)
+        case .completed: try! self?.completeSaga(saga.sagaId)
+        }
       }
     }
   }
@@ -90,9 +97,12 @@ extension Service {
 }
 
 extension Service {
-  private func startSaga(_ sagaId: String) throws {
+  private func startSaga(_ sagaId: String, payload: Data? = nil) throws {
     try lock.withLock {
-      let saga = try sagaFor(sagaId, executing: .startSaga(sagaId: sagaId))
+      let saga = try sagaFor(
+        sagaId,
+        executing: .startSaga(sagaId: sagaId, payload: payload)
+      )
       try saga.stepsToStart()
         .forEach { step in
           queue.async { [weak self] in
@@ -276,6 +286,9 @@ extension Service {
         stepKey: stepKey))
       
       let step = try saga.stepFor(stepKey)
+      let key = "\(sagaId):\(stepKey)"
+      guard retries[key, default: 0] < 5 else { fatalError() }
+      retries[key, default: 0] += 1
       DispatchQueue.global().async { [weak self] in
         do {
           let result = try await(payload, step.compensation.execute)

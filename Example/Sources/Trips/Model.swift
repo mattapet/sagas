@@ -37,11 +37,11 @@ func addFilters<K: Hashable, V>(to storage: Storage<K, V>) {
   }
   storage.addSaveFilter { (_, _, next) in
     // Adds 50% error rate
-    if Int.random(in: 0..<10) < 3 {
+//    if Int.random(in: 0..<10) < 3 {
       next(.success(nil))
-    } else {
-      next(.failure(StorageError.internalFailue))
-    }
+//    } else {
+//      next(.failure(StorageError.internalFailue))
+//    }
   }
 }
 

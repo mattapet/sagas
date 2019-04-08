@@ -17,7 +17,7 @@ public final class EventHandler {
   public func apply(_ event: Event, to saga: Saga) throws  -> Saga {
     switch event.type {
     case .sagaStarted:
-      return saga.started()
+      return saga.started(payload: event.payload)
     case .sagaAborted:
       return saga.aborted()
     case .sagaCompleted:
@@ -46,7 +46,7 @@ public final class EventHandler {
     case .transactionCompleted:
       return step.completed(payload: event.payload)
     case .compensationStarted:
-      return step.compensating(payload: event.payload)
+      return step//.compensating(payload: event.payload)
     case .compensationCompleted:
       return step.compensated(payload: event.payload)
       

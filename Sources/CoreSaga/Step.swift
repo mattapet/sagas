@@ -13,7 +13,7 @@ public struct Step {
     case started(Data?)
     case aborted(Data?)
     case completed(Data?)
-    case compensating(Data?)
+//    case compensating(Data?)
     case compensated(Data?)
   }
   
@@ -83,7 +83,7 @@ extension Step {
     case .started(let data),
          .aborted(let data),
          .completed(let data),
-         .compensating(let data),
+//         .compensating(let data),
          .compensated(let data):
       return data
     }
@@ -145,17 +145,17 @@ extension Step {
     )
   }
   
-  public func compensating(payload: Data? = nil) -> Step {
-    return Step(
-      state: .compensating(payload),
-      sagaId: sagaId,
-      key: key,
-      dependencies: dependencies,
-      successors: successors,
-      transaction: transaction,
-      compensation: compensation
-    )
-  }
+//  public func compensating(payload: Data? = nil) -> Step {
+//    return Step(
+//      state: .compensating(payload),
+//      sagaId: sagaId,
+//      key: key,
+//      dependencies: dependencies,
+//      successors: successors,
+//      transaction: transaction,
+//      compensation: compensation
+//    )
+//  }
   
   public func compensated(payload: Data? = nil) -> Step {
     return Step(

@@ -77,8 +77,8 @@ let tripSaga = SagaDefinition {
 //)
 
 final class CustomEventStore: EventStore {
-  private let filename: String
-  private var _storage: [String:[Event]] = [:]
+  let filename: String
+  var _storage: [String:[Event]] = [:]
   
   init(filename: String) {
     self.filename = filename
@@ -104,8 +104,10 @@ final class CustomEventStore: EventStore {
     for saga: Saga,
     with completion: (Result<[Event], Error>) -> Void
   ) {
-    completion(Result { _storage[saga.sagaId] ?? [] })
-    print("\(saga.sagaId):\(saga.state)")
+    completion(Result {
+      saveToFile()
+      return _storage[saga.sagaId] ?? []
+    })
   }
   
   func store(
@@ -113,7 +115,6 @@ final class CustomEventStore: EventStore {
     for saga: Saga, 
     with completion: (Result<(), Error>) -> Void
   ) {
-    print("\(saga.sagaId):\(events)")
     completion(Result {
       _storage[saga.sagaId, default: []].append(contentsOf: events)
     })
@@ -130,11 +131,20 @@ let coordinator = Service(repository: repository)
 let tripData = try utils.encoder.encode(trip)
 let tripData1 = try utils.encoder.encode(trip1)
 
-group.enter()
-coordinator.register(definition: tripSaga, using: tripData) {
-  print("DONE")
-  group.leave()
+try store._storage.keys.forEach { sagaId in
+  let saga = Saga(sagaId: sagaId, definition: tripSaga)
+  group.enter()
+  try coordinator.restart(saga: saga) {
+    print("DONE Restarting \(sagaId)")
+    group.leave()
+  }
 }
+
+//group.enter()
+//coordinator.register(definition: tripSaga, using: tripData) {
+//  print("DONE")
+//  group.leave()
+//}
 //group.enter()
 //try coordinator.start(definition: tripSaga.name, using: tripData1) {
 //  print("DONE")

@@ -16,9 +16,10 @@ public final class CommandHandler {
   public init() {}
   
   public func handle(_ command: Command, on saga: Saga) throws -> [Event] {
+    print("\(saga.state):\(command.type)")
     switch (saga.state, command.type) {
     case (.fresh, .startSaga):
-      return [.sagaStarted(sagaId: saga.sagaId)]
+      return [.sagaStarted(sagaId: saga.sagaId, payload: command.payload)]
       
     case (.started, .abortSaga):
       return [.sagaAborted(sagaId: saga.sagaId)]
@@ -118,10 +119,12 @@ public final class CommandHandler {
         )
       ]
 
-    case (.compensating, .retryCompensation):
+    case (.started, .retryCompensation),
+         (.completed, .retryCompensation):
       return []
       
-    case (.compensating, .completeCompensation):
+    case (.started, .completeCompensation),
+         (.completed, .completeCompensation):
       return [
         .compensationCompleted(
           sagaId: command.sagaId,

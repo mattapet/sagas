@@ -54,11 +54,13 @@ extension Event {
 
 extension Event {
   public static func sagaStarted(
-    sagaId: String
+    sagaId: String,
+    payload: Data? = nil
   ) -> Event {
     return Event(
       type: .sagaStarted,
-      sagaId: sagaId
+      sagaId: sagaId,
+      payload: payload
     )
   }
   

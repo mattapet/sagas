@@ -141,12 +141,12 @@ extension Saga {
     self.payload = payload
   }
 
-  public func started() -> Saga {
+  public func started(payload: Data? = nil) -> Saga {
     return Saga(
       state: .started,
       sagaId: sagaId,
       steps: steps,
-      payload: payload
+      payload: payload ?? self.payload
     )
   }
   

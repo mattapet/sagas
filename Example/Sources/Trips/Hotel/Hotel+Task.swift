@@ -18,6 +18,7 @@ public struct HotelReservationTask: Job {
   ) -> Void) {
     completion(Result { () -> Data? in
       guard let payload = payload else { throw TripError.invalidHotelPayload }
+      throw StorageError.internalFailue
       let trip = try utils.decoder.decode(Trip.self, from: payload)
       try reserve(trip.hotel, forTripId: trip.tripId)
       return try utils.encoder.encode(trip)

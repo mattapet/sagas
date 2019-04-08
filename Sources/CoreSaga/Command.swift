@@ -56,11 +56,13 @@ extension Command {
 
 extension Command {
   public static func startSaga(
-    sagaId: String
+    sagaId: String,
+    payload: Data? = nil
   ) -> Command {
     return Command(
       type: .startSaga,
-      sagaId: sagaId
+      sagaId: sagaId,
+      payload: payload
     )
   }
   
