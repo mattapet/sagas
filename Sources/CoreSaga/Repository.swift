@@ -8,29 +8,37 @@
 import Basic
 import Foundation
 
-public final class Repository<Store: EventStore> {
-  private let store: EventStore
+public protocol Repository {
+  associatedtype SagaType: AnySaga
   
-  internal let eventHandler: EventHandler
-  internal let commandHandler: CommandHandler
+  func query(_ saga: SagaType) throws -> SagaType
+  func execute(_ command: Command, on saga: SagaType) throws -> SagaType
+}
+
+public protocol EventRepository: Repository {
+  associatedtype EventStoreType: EventStore
+  associatedtype EventHandlerType: EventHandler
+  associatedtype CommandHandlerType: CommandHandler
+    where
+      CommandHandlerType.SagaType == SagaType,
+      CommandHandlerType.SagaType == EventHandlerType.SagaType
   
-  public init(
-    store: Store,
-    eventHandler: EventHandler,
-    commandHandler: CommandHandler
-  ) {
-    self.store = store
-    self.eventHandler = eventHandler
-    self.commandHandler = commandHandler
-  }
-  
-  public func query(_ saga: Saga) throws -> Saga {
+  var store: EventStoreType { get }
+  var eventHandler: EventHandlerType { get }
+  var commandHandler: CommandHandlerType { get }
+}
+
+extension EventRepository {
+  public func query(_ saga: SagaType) throws -> SagaType {
     return try await(saga, store.load).reduce(saga) { saga, event in
       return try eventHandler.apply(event, to: saga)
     }
   }
   
-  public func execute(_ command: Command, on saga: Saga) throws -> Saga {
+  public func execute(
+    _ command: Command,
+    on saga: SagaType
+  ) throws -> SagaType {
     let events = try commandHandler.handle(command, on: saga)
     try await(events, saga, store.store)
     return try events.reduce(saga) {

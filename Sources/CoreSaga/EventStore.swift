@@ -9,13 +9,13 @@ import Foundation
 
 public protocol EventStore {
   func load(
-    for saga: Saga,
+    for saga: AnySaga,
     with completion: (Result<[Event], Error>) -> Void
   )
   
   func store(
     _ events: [Event],
-    for saga: Saga,
+    for saga: AnySaga,
     with completion: (Result<(), Error>) -> Void
   )
 }

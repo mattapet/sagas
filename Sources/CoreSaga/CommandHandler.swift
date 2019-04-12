@@ -12,10 +12,92 @@ public enum ComamndHandlerError: Error {
   case invalidCommandApplication
 }
 
-public final class CommandHandler {
-  public init() {}
+public protocol CommandHandler {
+  associatedtype SagaType: AnySaga
   
-  public func handle(_ command: Command, on saga: Saga) throws -> [Event] {
+  func handle(_ command: Command, on saga: SagaType) throws -> [Event]
+}
+
+// MARK: - Retryable saga
+
+extension CommandHandler where SagaType: RetryableSaga {
+  public func handle(_ command: Command, on saga: SagaType) throws -> [Event] {
+    print("\(saga.state):\(command.type)")
+    switch (saga.state, command.type) {
+    case (.fresh, .startSaga):
+      return [.sagaStarted(sagaId: saga.sagaId, payload: command.payload)]
+      
+    case (.started, .completeSaga):
+      return [.sagaCompleted(sagaId: saga.sagaId)]
+      
+    case (.started, .startSaga),
+         (.completed, .completeSaga):
+      return [] // Ensure idempotency
+      
+    case (.started, .startTransaction),
+         (.started, .retryTransaction),
+         (.started, .completeTransaction):
+      guard let events = command.stepKey
+        .flatMap({ saga.steps[$0] })
+        .map({ handle(command, on: $0) })
+        else { throw ComamndHandlerError.invalidStepKey }
+      return events
+      
+    case (.aborted, _),
+         (.completed, .startSaga),
+         (.completed, .startTransaction),
+         (.completed, .retryTransaction),
+         (.completed, .completeTransaction),
+         (.fresh, .completeSaga),
+         (.fresh, .startTransaction),
+         (.fresh, .retryTransaction),
+         (.fresh, .completeTransaction),
+         (_, .abortSaga),
+         (_, .abortTransaction),
+         (_, .startCompensation),
+         (_, .retryCompensation),
+         (_, .completeCompensation):
+      print("\(saga.sagaId):\(saga.state):\(command)")
+      throw ComamndHandlerError.invalidCommandApplication
+    }
+  }
+  
+  internal func handle(_ command: Command, on step: Step) -> [Event] {
+    precondition(command.isStepCommand, "Invalid comamnd application")
+    switch (step.state, command.type) {
+    // `started` Saga, `fresh` Step
+    case (.fresh, .startTransaction):
+      return [
+        .transactionStarted(
+          sagaId: command.sagaId,
+          stepKey: step.key,
+          payload: command.payload
+        )
+      ]
+      // `started` Saga, `started` Step
+      
+    case (.started, .retryTransaction):
+      return []
+      
+    case (.started, .completeTransaction):
+      return [
+        .transactionCompleted(
+          sagaId: command.sagaId,
+          stepKey: step.key,
+          payload: command.payload
+        )
+      ]
+      
+    default:
+      fatalError("Unreachable")
+    }
+  }
+}
+
+// MARK: - Compensable saga
+
+extension CommandHandler where SagaType: CompensableSaga {
+  public func handle(_ command: Command, on saga: SagaType) throws -> [Event] {
     print("\(saga.state):\(command.type)")
     switch (saga.state, command.type) {
     case (.fresh, .startSaga):
@@ -37,15 +119,18 @@ public final class CommandHandler {
          (.started, .abortTransaction),
          (.started, .retryTransaction),
          (.started, .completeTransaction),
+         
+         (.aborted, .completeTransaction),
+         (.aborted, .retryTransaction),
          (.aborted, .startCompensation),
          (.aborted, .retryCompensation),
          (.aborted, .completeCompensation):
       guard let events = command.stepKey
         .flatMap({ saga.steps[$0] })
         .map({ handle(command, on: $0) })
-      else { throw ComamndHandlerError.invalidStepKey }
+        else { throw ComamndHandlerError.invalidStepKey }
       return events
-
+      
     case (.completed, .startSaga),
          (.completed, .abortSaga),
          (.completed, .startTransaction),
@@ -58,8 +143,6 @@ public final class CommandHandler {
          (.aborted, .startSaga),
          (.aborted, .startTransaction),
          (.aborted, .abortTransaction),
-         (.aborted, .retryTransaction),
-         (.aborted, .completeTransaction),
          (.started, .startCompensation),
          (.started, .retryCompensation),
          (.started, .completeCompensation),
@@ -80,6 +163,7 @@ public final class CommandHandler {
   internal func handle(_ command: Command, on step: Step) -> [Event] {
     precondition(command.isStepCommand, "Invalid comamnd application")
     switch (step.state, command.type) {
+    // `started` Saga, `fresh` Step
     case (.fresh, .startTransaction):
       return [
         .transactionStarted(
@@ -88,7 +172,7 @@ public final class CommandHandler {
           payload: command.payload
         )
       ]
-      
+    // `started` & `aborted` Saga, `started` Step
     case (.started, .abortTransaction):
       return [
         .transactionAborted(
@@ -99,7 +183,7 @@ public final class CommandHandler {
       
     case (.started, .retryTransaction):
       return []
-
+      
     case (.started, .completeTransaction):
       return [
         .transactionCompleted(
@@ -108,9 +192,9 @@ public final class CommandHandler {
           payload: command.payload
         )
       ]
-
-    case (.completed, .startCompensation),
-         (.started, .startCompensation):
+      
+    // `aborted` Saga, `completed` Step
+    case (.completed, .startCompensation):
       return [
         .compensationStarted(
           sagaId: command.sagaId,
@@ -118,13 +202,11 @@ public final class CommandHandler {
           payload: command.payload
         )
       ]
-
-    case (.started, .retryCompensation),
-         (.completed, .retryCompensation):
+      
+    case (.completed, .retryCompensation):
       return []
       
-    case (.started, .completeCompensation),
-         (.completed, .completeCompensation):
+    case (.completed, .completeCompensation):
       return [
         .compensationCompleted(
           sagaId: command.sagaId,

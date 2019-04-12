@@ -1,10 +1,11 @@
 //
 //  Request.swift
-//  CoreSaga
+//  LocalSagas
 //
 //  Created by Peter Matta on 4/4/19.
 //
 
+import CoreSaga
 import Foundation
 
 public struct Request {

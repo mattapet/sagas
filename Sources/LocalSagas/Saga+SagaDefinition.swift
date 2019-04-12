@@ -1,13 +1,14 @@
 //
 //  Saga+SagaDefinition.swift
-//  CoreSaga
+//  LocalSagas
 //
 //  Created by Peter Matta on 4/5/19.
 //
 
+import CoreSaga
 import Foundation
 
-extension Saga {
+extension SimpleSaga {
   public init(
     sagaId: String = UUID().uuidString,
     definition: SagaDefinition,
@@ -44,6 +45,7 @@ extension SagaDefinition {
   fileprivate var requestMap: [String:Request] {
     return requests.reduce(into: [:]) { $0[$1.key] = $1 }
   }
+  
   fileprivate var compensationMap: [String:Compensation] {
     return compensations.reduce(into: [:]) { $0[$1.key] = $1 }
   }

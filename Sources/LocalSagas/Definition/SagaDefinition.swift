@@ -1,9 +1,11 @@
 //
 //  SagaDefinition.swift
-//  CoreSaga
+//  LocalSagas
 //
 //  Created by Peter Matta on 4/4/19.
 //
+
+import CoreSaga
 
 public struct SagaDefinition {
   public typealias RequestType = Request
