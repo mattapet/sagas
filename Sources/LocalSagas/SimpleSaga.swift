@@ -6,17 +6,19 @@
 //
 
 import CoreSaga
+import CompensableSaga
 import Foundation
 
-public struct SimpleSaga {
+public struct SimpleSaga: CompensableSaga {
+  public typealias StepType = CompensableStep
   public let state: SagaState
   public let sagaId: String
-  public let steps: [String:Step]
+  public let steps: [String:StepType]
   public let payload: Data?
   
   public init(
     sagaId: String,
-    steps: [String:Step],
+    steps: [String:StepType],
     payload: Data? = nil
   ) {
     self.state = .fresh
@@ -26,11 +28,11 @@ public struct SimpleSaga {
   }
 }
 
-extension SimpleSaga: CompensableSaga {
+extension SimpleSaga {
   fileprivate init(
     state: SagaState,
     sagaId: String,
-    steps: [String:Step],
+    steps: [String:StepType],
     payload: Data? = nil
   ) {
     self.state = state
@@ -39,7 +41,7 @@ extension SimpleSaga: CompensableSaga {
     self.payload = payload
   }
   
-  public func updating(step: Step) -> SimpleSaga {
+  public func updating(step: StepType) -> SimpleSaga {
     return SimpleSaga(
       state: state,
       sagaId: sagaId,

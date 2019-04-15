@@ -6,6 +6,7 @@
 //
 
 import CoreSaga
+import CompensableSaga
 import Foundation
 
 extension SimpleSaga {
@@ -29,7 +30,7 @@ extension SimpleSaga {
     self.sagaId = sagaId
     self.payload = payload
     self.steps = reqMap.mapValues { request in
-      return Step(
+      return CompensableStep(
         sagaId: sagaId,
         key: request.key,
         dependencies: request.dependencies.compactMap { reqMap[$0]!.key },

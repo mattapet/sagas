@@ -43,7 +43,7 @@ extension SagaDefinitionBuilder {
             compensation: compensations.last!.key,
             task: BasicJob(closure: transaction)
           )
-      )
+        )
     }
     return with(
       name: name,
@@ -68,7 +68,7 @@ extension SagaDefinitionBuilder {
           compensation: compensations.last!.key,
           task: BasicJob(closure: transaction)
         )
-    )
+      )
   }
   
   public func with(request: Request) -> SagaDefinitionBuilder {

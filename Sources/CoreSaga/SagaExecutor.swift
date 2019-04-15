@@ -14,20 +14,24 @@ public enum ServiceError: Error {
   case invalidKeyId
 }
 
-public final class SagaExecutor<SagaType, RepositoryType: Repository>
-  where SagaType == RepositoryType.SagaType
+public final class SagaExecutor<
+  SagaType,
+  ExecutionFactoryType: ExecutionFactory
+> where SagaType == ExecutionFactoryType.SagaType
 {
+  public typealias ExecutionType = ExecutionFactoryType.ExecutionType
+  
   private let lock: Lock
   private var retries: [String:Int] = [:]
   private var completions: [String:Disposable]
-  private var executions: [String:Execution<SagaType, RepositoryType>]
-  private let repository: RepositoryType
+  private var executions: [String:ExecutionType]
+  private let factory: ExecutionFactoryType
   
-  public init(repository: RepositoryType) {
+  public init(factory: ExecutionFactoryType) {
     self.lock = Lock()
     self.executions = [:]
     self.completions = [:]
-    self.repository = repository
+    self.factory = factory
   }
 }
 
@@ -37,28 +41,9 @@ extension SagaExecutor {
     with completion: @escaping (Result<Data?, Error>) -> Void
   ) {
     lock.withLock {
-      let execution = Execution(saga: saga, repository: repository)
+      let execution = factory.create(from: saga)
       executions[saga.sagaId] = execution
 
-      execution.launch { [weak self] result in
-        self?.lock.withLock { [weak self] in
-          self?.completions.removeValue(forKey: saga.sagaId)
-          completion(result)
-        }
-      }
-    }
-  }
-}
-
-extension SagaExecutor where SagaType: CompensableSaga {
-  public func register(
-    saga: SagaType,
-    with completion: @escaping (Result<Data?, Error>) -> Void
-  ) {
-    lock.withLock {
-      let execution = Execution(saga: saga, repository: repository)
-      executions[saga.sagaId] = execution
-      
       execution.launch { [weak self] result in
         self?.lock.withLock { [weak self] in
           self?.completions.removeValue(forKey: saga.sagaId)
