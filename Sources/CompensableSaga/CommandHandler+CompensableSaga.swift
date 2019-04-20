@@ -1,6 +1,6 @@
 //
 //  CommandHandler+CompensableSaga.swift
-//  CoreSaga
+//  CompensableSaga
 //
 //  Created by Peter Matta on 4/14/19.
 //

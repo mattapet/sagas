@@ -20,15 +20,8 @@ public protocol AnySaga {
   var steps: [String:StepType] { get }
   var payload: Data? { get }
   
-  var initial: [StepType] { get }
-  var terminal: [StepType] { get }
-  
   func updating(step: StepType) -> Self
   func stepFor(_ stepKey: String) throws -> StepType
-  func stepsToStart() throws -> [StepType]
-  
-  func started(payload: Data?) -> Self
-  func completed() -> Self
 }
 
 extension AnySaga {

@@ -1,7 +1,6 @@
 import Basic
 import Dispatch
 import Foundation
-import CoreSaga
 import LocalSagas
 import Trips
 
@@ -76,75 +75,26 @@ let tripSaga = SagaDefinition {
 //  ]
 //)
 
-final class CustomEventStore: EventStore {
-  let filename: String
-  var _storage: [String:[Event]] = [:]
-  
-  init(filename: String) {
-    self.filename = filename
-    do {
-      self._storage =
-        try utils.decoder.decode(
-          [String:[Event]].self,
-          from: try Data(contentsOf:
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-              .appendingPathComponent(filename)))
-    } catch {
-      self._storage = [:]
-    }
-  }
-
-  func saveToFile() {
-    try! utils.encoder.encode(_storage).write(to:
-      URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        .appendingPathComponent(filename))
-  }
-  
-  func load(
-    for saga: Saga,
-    with completion: (Result<[Event], Error>) -> Void
-  ) {
-    completion(Result {
-      saveToFile()
-      return _storage[saga.sagaId] ?? []
-    })
-  }
-  
-  func store(
-    _ events: [Event],
-    for saga: Saga, 
-    with completion: (Result<(), Error>) -> Void
-  ) {
-    completion(Result {
-      _storage[saga.sagaId, default: []].append(contentsOf: events)
-    })
-  }
-}
-
 let group = DispatchGroup()
-let eventHandler = EventHandler()
-let commandHandler = CommandHandler()
-let store = CustomEventStore(filename: "storage.json")
-let repository = Repository(store: store, eventHandler: eventHandler, commandHandler: commandHandler)
-let coordinator = Service(repository: repository)
 
 let tripData = try utils.encoder.encode(trip)
 let tripData1 = try utils.encoder.encode(trip1)
 
-try store._storage.keys.forEach { sagaId in
-  let saga = Saga(sagaId: sagaId, definition: tripSaga)
-  group.enter()
-  try coordinator.restart(saga: saga) {
-    print("DONE Restarting \(sagaId)")
-    group.leave()
-  }
-}
-
-//group.enter()
-//coordinator.register(definition: tripSaga, using: tripData) {
-//  print("DONE")
-//  group.leave()
+//try store._storage.keys.forEach { sagaId in
+//  let saga = SimpleSaga(sagaId: sagaId, definition: tripSaga)
+//  group.enter()
+//  coordinator.register(saga: saga) { _ in
+//    print("DONE Restarting \(sagaId)")
+//    group.leave()
+//  }
 //}
+
+group.enter()
+register(definition: tripSaga, using: tripData) { result in
+  print("Result: \(result)")
+  print("DONE")
+  group.leave()
+}
 //group.enter()
 //try coordinator.start(definition: tripSaga.name, using: tripData1) {
 //  print("DONE")
@@ -153,4 +103,4 @@ try store._storage.keys.forEach { sagaId in
 
 group.wait()
 dumpStorage()
-store.saveToFile()
+//store.saveToFile()

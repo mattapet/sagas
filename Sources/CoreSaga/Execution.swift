@@ -11,8 +11,10 @@ import Foundation
 
 public protocol Execution {
   associatedtype SagaType: AnySaga
+  associatedtype ExecutorType: Executor = Executor
   
   var saga: SagaType { get }
+  var executor: ExecutorType { get }
   
   func launch(with completion: @escaping (Result<Data?, Error>) -> Void)
   func start() throws

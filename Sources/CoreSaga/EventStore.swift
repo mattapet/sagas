@@ -8,14 +8,16 @@
 import Foundation
 
 public protocol EventStore {
-  func load<S: AnySaga>(
-    for saga: S,
+  associatedtype SagaType: AnySaga = AnySaga
+  
+  func load(
+    for saga: SagaType,
     with completion: (Result<[Event], Error>) -> Void
   )
   
-  func store<S: AnySaga>(
+  func store(
     _ events: [Event],
-    for saga: S,
+    for saga: SagaType,
     with completion: (Result<(), Error>) -> Void
   )
 }

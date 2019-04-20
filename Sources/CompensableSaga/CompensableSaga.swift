@@ -1,11 +1,12 @@
 //
 //  CompensableSaga.swift
-//  LocalSagas
+//  CompensableSaga
 //
 //  Created by Peter Matta on 4/15/19.
 //
 
 import CoreSaga
+import Foundation
 
 public enum SagaState {
   case fresh, started, aborted, completed
@@ -14,7 +15,9 @@ public enum SagaState {
 public protocol CompensableSaga: AnySaga
   where StepType == CompensableStep, State == SagaState
 {
+  func started(payload: Data?) -> Self
   func aborted() -> Self
+  func completed() -> Self
   func stepsToComplete() throws -> [StepType]
   func stepsToCompensate() throws -> [StepType]
 }

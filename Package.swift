@@ -14,7 +14,9 @@ let package = Package(
   targets: [
     // Targets are the basic building blocks of a package. A target can define a module or a test suite.
     // Targets can depend on other targets in this package, and on products in packages which this package depends on.
-    .target(name: "LocalSagas", dependencies: ["CoreSaga", "Basic"]),
+    .target(name: "LocalSagas", dependencies: ["CoreSaga", "RetryableSaga", "CompensableSaga", "Basic"]),
+    .target(name: "CompensableSaga", dependencies: ["CoreSaga", "Basic"]),
+    .target(name: "RetryableSaga", dependencies: ["CoreSaga", "Basic"]),
     .target(name: "CoreSaga", dependencies: ["Basic"]),
     .target(name: "Basic", dependencies: [])
   ]

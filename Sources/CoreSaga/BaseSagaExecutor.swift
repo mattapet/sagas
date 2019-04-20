@@ -1,5 +1,5 @@
 //
-//  SagaExecutor.swift
+//  BaseSagaExecutor.swift
 //  CoreSaga
 //
 //  Created by Peter Matta on 4/4/19.
@@ -14,7 +14,7 @@ public enum ServiceError: Error {
   case invalidKeyId
 }
 
-public final class SagaExecutor<
+open class BaseSagaExecutor<
   SagaType,
   ExecutionFactoryType: ExecutionFactory
 > where SagaType == ExecutionFactoryType.SagaType
@@ -22,7 +22,6 @@ public final class SagaExecutor<
   public typealias ExecutionType = ExecutionFactoryType.ExecutionType
   
   private let lock: Lock
-  private var retries: [String:Int] = [:]
   private var completions: [String:Disposable]
   private var executions: [String:ExecutionType]
   private let factory: ExecutionFactoryType
@@ -35,7 +34,7 @@ public final class SagaExecutor<
   }
 }
 
-extension SagaExecutor {
+extension BaseSagaExecutor {
   public func register(
     saga: SagaType,
     with completion: @escaping (Result<Data?, Error>) -> Void

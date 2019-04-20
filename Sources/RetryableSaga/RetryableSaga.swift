@@ -1,18 +1,23 @@
 //
 //  RetryableSaga.swift
-//  Sagas
+//  RetryableSaga
 //
 //  Created by Peter Matta on 4/15/19.
 //
 
 import CoreSaga
+import Foundation
 
 public enum SagaState {
   case fresh, started, completed
 }
 
 public protocol RetryableSaga: AnySaga
-  where StepType == RetryableStep, State == SagaState {}
+  where StepType == RetryableStep, State == SagaState
+{
+  func started(payload: Data?) -> Self
+  func completed() -> Self
+}
 
 extension RetryableSaga {
   /// Returns array of saga steps that can be started.

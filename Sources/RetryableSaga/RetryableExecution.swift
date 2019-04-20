@@ -1,6 +1,6 @@
 //
 //  RetryableExecution.swift
-//  CoreSaga
+//  RetryableSaga
 //
 //  Created by Peter Matta on 4/14/19.
 //
@@ -9,19 +9,30 @@ import Basic
 import CoreSaga
 import Foundation
 
-public final class RetryableExecution<S: RetryableSaga, R: Repository>
+public final class RetryableExecution<
+  S: RetryableSaga,
+  E: Executor,
+  R: Repository
+>
   where S == R.SagaType
 {
   public typealias SagaType = S
+  public typealias ExecutorType = E
   public typealias RepositoryType = R
   
   public let saga: SagaType
+  public let executor: ExecutorType
   internal let queue: DispatchQueue
   internal let repository: RepositoryType
   internal var completion: ((Result<Data?, Error>) -> Void)?
   
-  public init(saga: SagaType, repository: RepositoryType) {
+  public init(
+    saga: SagaType,
+    executor: ExecutorType,
+    repository: RepositoryType
+  ) {
     self.saga = saga
+    self.executor = executor
     self.queue = DispatchQueue(label: "execution-queue-\(saga.sagaId)")
     self.repository = repository
     self.completion = nil
@@ -29,10 +40,12 @@ public final class RetryableExecution<S: RetryableSaga, R: Repository>
   
   public init(
     saga: SagaType,
+    executor: ExecutorType,
     repository: RepositoryType,
     queue: DispatchQueue
   ) {
     self.saga = saga
+    self.executor = executor
     self.queue = queue
     self.repository = repository
     self.completion = nil
@@ -89,37 +102,37 @@ extension RetryableExecution {
   private func start(step stepKey: String) throws {
     let saga = try execute(.startTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    DispatchQueue.global().async { [weak self] in
-      let result = Result { try await(saga.payload, step.transaction.execute) }
-      self?.queue.async { [weak self] in
-        do {
-          switch result {
-          case .success(let result):
-            try self?.complete(step: stepKey, payload: result)
-          case .failure:
-            try self?.retry(step: stepKey)
-          }
-        } catch let error { self?.fail(error: error) }
+    executor
+      .execute(step.transaction, using: saga.payload) { [weak self] result in
+        self?.queue.async { [weak self] in
+          do {
+            switch result {
+            case .success(let result):
+              try self?.complete(step: stepKey, payload: result)
+            case .failure:
+              try self?.retry(step: stepKey)
+            }
+          } catch let error { self?.fail(error: error) }
+        }
       }
-    }
   }
   
   private func retry(step stepKey: String) throws {
     let saga = try execute(.retryTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    DispatchQueue.global().async { [weak self] in
-      let result = Result { try await(saga.payload, step.transaction.execute) }
-      self?.queue.async { [weak self] in
-        do {
-          switch result {
-          case .success(let result):
-            try self?.complete(step: stepKey, payload: result)
-          case .failure:
-            try self?.retry(step: stepKey)
-          }
-        } catch let error { self?.fail(error: error) }
+    executor
+      .execute(step.transaction, using: saga.payload) { [weak self] result in
+        self?.queue.async { [weak self] in
+          do {
+            switch result {
+            case .success(let result):
+              try self?.complete(step: stepKey, payload: result)
+            case .failure:
+              try self?.retry(step: stepKey)
+            }
+          } catch let error { self?.fail(error: error) }
+        }
       }
-    }
   }
   
   private func complete(step stepKey: String, payload: Data?) throws {

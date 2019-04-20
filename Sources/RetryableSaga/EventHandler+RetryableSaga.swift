@@ -1,6 +1,6 @@
 //
 //  EventHandler+RetryableSaga.swift
-//  CoreSaga
+//  RetryableSaga
 //
 //  Created by Peter Matta on 4/14/19.
 //
