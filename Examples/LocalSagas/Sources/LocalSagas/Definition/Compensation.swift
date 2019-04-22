@@ -6,7 +6,6 @@
 //
 
 import CoreSaga
-import Foundation
 
 public struct Compensation {
   public let key: String

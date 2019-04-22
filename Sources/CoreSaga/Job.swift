@@ -10,6 +10,6 @@ import Foundation
 public protocol Job {
   func execute(
     using payload: Data?,
-    with completion: (Result<Data?, Error>) -> Void
+    with completion: @escaping (Result<Data?, Error>) -> Void
   )
 }

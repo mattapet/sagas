@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  hotel:
+    build:
+      context: ./hotel
+      dockerfile: ../Dockerfile
+    environment:
+      - NODE_ENV=production
+    ports:
+      - 3001:3000
+  
+  car:
+    build:
+      context: ./car
+      dockerfile: ../Dockerfile
+    environment:
+      - NODE_ENV=production
+    ports:
+      - 3002:3000
+
+  plane:
+    build:
+      context: ./plane
+      dockerfile: ../Dockerfile
+    environment:
+      - NODE_ENV=production
+    ports:
+      - 3003:3000
+
+  payment:
+    build:
+      context: ./payment
+      dockerfile: ../Dockerfile
+    environment:
+      - NODE_ENV=production
+    ports:
+      - 3004:3000

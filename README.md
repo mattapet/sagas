@@ -28,9 +28,11 @@ swift run
 | \
 |  +- Basic
 |  |
-|  +- LocalSagas
+|  +- CoreSaga
 |  |
-|  \- Sagas
+|  +- CompensableSaga
+|  |
+|  \- RetryableSaga
 |
 \- Example
 ```

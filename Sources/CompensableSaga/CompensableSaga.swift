@@ -23,6 +23,17 @@ public protocol CompensableSaga: AnySaga
 }
 
 extension CompensableSaga {
+  public var isCompleted: Bool {
+    switch state {
+    case .started: return steps.allSatisfy { $0.value.isCompleted }
+    case .fresh: return false
+    case .aborted: return steps.allSatisfy { $0.value.isCompensated || $0.value.isFresh || $0.value.isAborted }
+    case .completed: return true
+    }
+  }
+}
+
+extension CompensableSaga {
   /// Returns array of saga steps that can be started.
   ///
   /// Method expects saga to be in `fresh` or `started` state. The reason

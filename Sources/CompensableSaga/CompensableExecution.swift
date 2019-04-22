@@ -79,7 +79,7 @@ extension CompensableExecution: Execution {
   public func start() throws {
     let saga = try execute(.startSaga(sagaId: sagaId))
     let stepsToStart = try saga.stepsToStart()
-    guard !stepsToStart.isEmpty else { return try complete() }
+    guard !saga.isCompleted else { return try complete() }
     
     try stepsToStart.forEach { stepToStart in
       try start(step: stepToStart.key)

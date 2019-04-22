@@ -1,0 +1,9 @@
+service:
+  name: payment
+  port: 3004
+
+endpoints:
+  hotel: http://localhost:3001
+  car: http://localhost:3002
+  plane: http://localhost:3003
+  payment: http://localhost:3004

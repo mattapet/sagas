@@ -20,6 +20,16 @@ public protocol RetryableSaga: AnySaga
 }
 
 extension RetryableSaga {
+  public var isCompleted: Bool {
+    switch state {
+    case .fresh: return false
+    case .started: return steps.allSatisfy { $0.value.isCompleted  }
+    case .completed: return true
+    }
+  }
+}
+
+extension RetryableSaga {
   /// Returns array of saga steps that can be started.
   ///
   /// Method expects saga to be in `fresh` or `started` state. The reason

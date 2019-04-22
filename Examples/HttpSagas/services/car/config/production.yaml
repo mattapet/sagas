@@ -1,0 +1,9 @@
+service:
+  name: hotel
+  port: 3000
+
+endpoints:
+  hotel: http://hotel
+  car: http://car
+  plane: http://plane
+  payment: http://payment

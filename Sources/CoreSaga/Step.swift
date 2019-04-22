@@ -15,7 +15,6 @@ public protocol AnyStep {
   var key: String { get }
   var dependencies: [String] { get }
   var successors: [String] { get }
-  var transaction: Job { get }
   
   var isInitial: Bool { get }
   var isTerminal: Bool { get }

@@ -6,7 +6,6 @@
 //
 
 import CoreSaga
-import Foundation
 
 public struct Request {
   public let key: String

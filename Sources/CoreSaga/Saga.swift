@@ -20,6 +20,8 @@ public protocol AnySaga {
   var steps: [String:StepType] { get }
   var payload: Data? { get }
   
+  var isCompleted: Bool { get }
+  
   func updating(step: StepType) -> Self
   func stepFor(_ stepKey: String) throws -> StepType
 }
