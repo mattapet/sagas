@@ -26,6 +26,8 @@ public final class RetryableExecution<
   internal let repository: RepositoryType
   internal var completion: ((Result<Data?, Error>) -> Void)?
   
+  private let executeJob: (Job, Data?) -> Future<Data?>
+  
   public init(
     saga: SagaType,
     executor: ExecutorType,
@@ -36,6 +38,7 @@ public final class RetryableExecution<
     self.queue = DispatchQueue(label: "execution-queue-\(saga.sagaId)")
     self.repository = repository
     self.completion = nil
+    self.executeJob = promisify(on: queue, executor.execute)
   }
   
   public init(
@@ -49,6 +52,7 @@ public final class RetryableExecution<
     self.queue = queue
     self.repository = repository
     self.completion = nil
+    self.executeJob = promisify(on: queue, executor.execute)
   }
 }
 
@@ -82,6 +86,7 @@ extension RetryableExecution: Execution {
     
     try stepsToStart.forEach { stepToStart in
       try start(step: stepToStart.key)
+        .whenFail { error in self.fail(error: error) }
     }
   }
   
@@ -99,39 +104,27 @@ extension RetryableExecution: Execution {
 }
 
 extension RetryableExecution {
-  private func start(step stepKey: String) throws {
+  private func start(step stepKey: String) throws -> Future<Void> {
     let saga = try execute(.startTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    executor
-      .execute(step.transaction, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.complete(step: stepKey, payload: result)
-            case .failure:
-              try self?.retry(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    return executeJob(step.transaction, saga.payload)
+      .map { result in
+        try self.complete(step: stepKey, payload: result)
+      }
+      .flatMapErrorThrowing { _ in
+        try self.retry(step: stepKey)
       }
   }
   
-  private func retry(step stepKey: String) throws {
+  private func retry(step stepKey: String) throws -> Future<Void> {
     let saga = try execute(.retryTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    executor
-      .execute(step.transaction, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.complete(step: stepKey, payload: result)
-            case .failure:
-              try self?.retry(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    return executeJob(step.transaction, saga.payload)
+      .map { result in
+        try self.complete(step: stepKey, payload: result)
+      }
+      .flatMapErrorThrowing { _ in
+        try self.retry(step: stepKey)
       }
   }
   

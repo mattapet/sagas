@@ -26,7 +26,7 @@ public func promisify<ResultType, ErrorType>(
 public func promisify<Arg1, ResultType, ErrorType>(
   on queue: DispatchQueue,
   _ body: @escaping (Arg1, @escaping (Result<ResultType, ErrorType>) -> Void) -> Void
-) -> ((Arg1) -> Future<ResultType>) {
+) -> (Arg1) -> Future<ResultType> {
   return { arg1 in
     promisify(on: queue) { body(arg1, $0) }()
   }

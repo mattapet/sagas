@@ -20,7 +20,7 @@ extension DispatchQueue {
   ///
   /// - parameters:
   ///   - value: Result of the operation.
-  public func makeSuccessFuture<Value>(_ value: Value) -> Future<Value> {
+  public func makeSucceededFuture<Value>(_ value: Value) -> Future<Value> {
     return Future(queue: self, value: .success(value))
   }
   
@@ -28,7 +28,7 @@ extension DispatchQueue {
   ///
   /// - parameters:
   ///   - error: Error discribing the failure of the operation.
-  public func makeFailFuture<Value>(
+  public func makeFailedFuture<Value>(
     _ error: Error,
     of type: Value.Type
   ) -> Future<Value> {

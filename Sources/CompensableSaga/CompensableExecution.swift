@@ -200,7 +200,7 @@ extension CompensableExecution {
   private func completeCompensation(
     step stepKey: String,
     payload: Data?
-    ) throws {
+  ) throws {
     let _ = try execute(.completeCompensation(
       sagaId: sagaId,
       stepKey: stepKey,
