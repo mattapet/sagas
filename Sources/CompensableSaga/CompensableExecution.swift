@@ -26,6 +26,8 @@ public final class CompensableExecution<
   internal let repository: RepositoryType
   internal var completion: ((Result<Data?, Error>) -> Void)?
   
+  private let executeJob: (Job, Data?) -> Future<Data?>
+  
   public init(
     saga: SagaType,
     executor: ExecutorType,
@@ -36,6 +38,7 @@ public final class CompensableExecution<
     self.queue = DispatchQueue(label: "execution-queue-\(saga.sagaId)")
     self.repository = repository
     self.completion = nil
+    self.executeJob = promisify(on: queue, executor.execute)
   }
   
   public init(
@@ -49,6 +52,7 @@ public final class CompensableExecution<
     self.queue = queue
     self.repository = repository
     self.completion = nil
+    self.executeJob = promisify(on: queue, executor.execute)
   }
 }
 
@@ -120,18 +124,15 @@ extension CompensableExecution {
     let saga = try execute(.startTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
     print("Starting \(step)")
-    executor
-      .execute(step.transaction, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.complete(step: stepKey, payload: result)
-            case .failure:
-              try self?.abort(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    executeJob(step.transaction, saga.payload)
+      .map { [weak self] result in
+        try self?.complete(step: stepKey, payload: result)
+      }
+      .mapError { [weak self] _ in
+        try self?.abort(step: stepKey)
+      }
+      .whenFail { [weak self] error in
+        self?.fail(error: error)
       }
   }
   
@@ -143,18 +144,15 @@ extension CompensableExecution {
   private func retry(step stepKey: String) throws {
     let saga = try execute(.retryTransaction(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    executor
-      .execute(step.transaction, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.complete(step: stepKey, payload: result)
-            case .failure:
-              try self?.retry(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    executeJob(step.transaction, saga.payload)
+      .map { [weak self] result in
+        try self?.complete(step: stepKey, payload: result)
+      }
+      .mapError { [weak self] _ in
+        try self?.retry(step: stepKey)
+      }
+      .whenFail { [weak self] error in
+        self?.fail(error: error)
       }
   }
   
@@ -172,36 +170,30 @@ extension CompensableExecution {
   private func compensate(step stepKey: String) throws {
     let saga = try execute(.startCompensation(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    executor
-      .execute(step.compensation, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.completeCompensation(step: stepKey, payload: result)
-            case .failure:
-              try self?.retryCompensation(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    executeJob(step.compensation, saga.payload)
+      .map { [weak self] result in
+        try self?.completeCompensation(step: stepKey, payload: result)
+      }
+      .mapError { [weak self] _ in
+        try self?.retryCompensation(step: stepKey)
+      }
+      .whenFail { [weak self] error in
+        self?.fail(error: error)
       }
   }
   
   private func retryCompensation(step stepKey: String) throws {
     let saga = try execute(.retryCompensation(sagaId: sagaId, stepKey: stepKey))
     let step = try saga.stepFor(stepKey)
-    executor
-      .execute(step.compensation, using: saga.payload) { [weak self] result in
-        self?.queue.async { [weak self] in
-          do {
-            switch result {
-            case .success(let result):
-              try self?.completeCompensation(step: stepKey, payload: result)
-            case .failure:
-              try self?.retryCompensation(step: stepKey)
-            }
-          } catch let error { self?.fail(error: error) }
-        }
+    executeJob(step.compensation, saga.payload)
+      .map { [weak self] result in
+        try self?.completeCompensation(step: stepKey, payload: result)
+      }
+      .mapError { [weak self] _ in
+        try self?.retryCompensation(step: stepKey)
+      }
+      .whenFail { [weak self] error in
+        self?.fail(error: error)
       }
   }
   

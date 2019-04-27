@@ -27,7 +27,9 @@ extension CompensableSaga {
     switch state {
     case .started: return steps.allSatisfy { $0.value.isCompleted }
     case .fresh: return false
-    case .aborted: return steps.allSatisfy { $0.value.isCompensated || $0.value.isFresh || $0.value.isAborted }
+    case .aborted: return steps.allSatisfy {
+      $0.value.isCompensated || $0.value.isFresh || $0.value.isAborted
+    }
     case .completed: return true
     }
   }

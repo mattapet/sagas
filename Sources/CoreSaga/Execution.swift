@@ -17,9 +17,6 @@ public protocol Execution {
   var executor: ExecutorType { get }
   
   func launch(with completion: @escaping (Result<Data?, Error>) -> Void)
-  func start() throws
-  func complete() throws
-  func fail(error: Error) throws
 }
 
 extension Execution {
