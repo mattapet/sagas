@@ -139,6 +139,20 @@ extension Promise {
 /// - [C++](https://en.cppreference.com/w/cpp/thread/future)
 /// - [Javascript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises)
 /// - [Scala](http://docs.scala-lang.org/overviews/core/futures.html)
+///
+/// ### Threading and Futures
+///
+/// Futures are observable values that provide a callback based interface for
+/// observing the completion of the value. Each of the `Future` object is tied
+/// to a specific `DispatchQueue` which is used to execute all registered
+/// callbacks on.
+///
+/// #### Callbacks
+///
+/// As it was mentioned previosly, all of the callbacks registered on a given
+/// `Future<Value>` will be executed on the thread corresponding to a dispatch
+/// queue used to create the given `Future` *regardless* of what thread succeeds
+/// or fails associated `Promise<Value>`.
 public final class Future<Value> {
   typealias Callback = () -> Void
   
@@ -575,7 +589,7 @@ extension Future {
       }
     }
     
-    // Ensure execution of the same dispatch queue
+    // Ensure execution on the same dispatch queue
     other.hop(to: queue)._whenComplete {
       switch (other._value!, lhs) {
       case (.failure(let error), _) where !promise.future.isComplete:
@@ -611,16 +625,29 @@ extension Future {
   public func and<OtherValue>(
     _ value: OtherValue
   ) -> Future<(Value, OtherValue)> {
-    return and(Future<OtherValue>(queue: queue, value: value))
+    return and(queue.makeSucceededFuture(value))
   }
 }
 
 // MARK: - fold
 
 extension Future {
+  /// Returns a new `Future<Value>` that completes successfully only when this
+  /// future and all the provided `futures` complete successfully.
+  ///
+  /// The eventual value of the future is the eventual value of this future
+  /// folded over all the `futures` applying `nextPartialResult` function.
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - futures: List of `Future<OtherValue>` futures to folder over.
+  ///   - nextPartialResult: The function that will be used to fold the values
+  ///   `futures`.
+  /// - returns: A new future, that will receive an eventual value.
   public func fold<OtherValue>(
     _ futures: [Future<OtherValue>],
-    _ nextPartialResult: @escaping (Value, OtherValue) -> Future<Value>
+    with nextPartialResult: @escaping (Value, OtherValue) -> Future<Value>
   ) -> Future<Value> {
     return futures.reduce(self) { f1, f2 in
       return f1.and(f2).flatMap { nextPartialResult($0.0, $0.1) }
@@ -631,6 +658,22 @@ extension Future {
 // MARK: - reduce
 
 extension Future {
+  /// Returns a new `Future<Result>` that completes when all of the futures
+  /// complete folding the `initialResult` over all results of `futures`.
+  ///
+  /// This function is equivalent to `Sequence.reduce()`, requireing copies of
+  /// the partial result being made. If this is of consern to you, consider
+  /// using `reduce<Result>(into:).
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - initialResult: The value to use as the initial accumulating value.
+  ///   - futures: List of the futures to reduce.
+  ///   - queue: A `DispatchQueue` to tie the new future to.
+  ///   - nextPartialResult: A closure that combines an accumulating value and
+  ///     an element of the sequence into a new accumulating value.
+  /// - returns: A new `Future<Result>` with an eventual reduced value.
   public static func reduce<Result>(
     _ initialResult: Result,
     _ futures: [Future<Value>],
@@ -638,11 +681,27 @@ extension Future {
     _ nextPartialResult: @escaping (Result, Value) -> Result
   ) -> Future<Result> {
     let result = queue.makeSucceededFuture(initialResult)
+    // Fold the result over all of the futures
     return result.fold(futures) { lhs, rhs in
       return queue.makeSucceededFuture(nextPartialResult(lhs, rhs))
     }
   }
   
+  /// Returns a new `Future<Result>` that completes when all of the futures
+  /// complete folding the `initialResult` over all results of `futures`.
+  ///
+  /// This function is equivalent to `Sequence.reduce(into:)`, which does not
+  /// make copies of the result type for each `Future`.
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - initialResult: The value to use as the initial accumulating value.
+  ///   - futures: List of the futures to reduce.
+  ///   - queue: A `DispatchQueue` to tie the new future to.
+  ///   - nextPartialResult: A closure that updates the accumulating value with
+  ///     a result of the next `Future<Value>` in the `futures` array.
+  /// - returns: A new `Future<Result>` with an eventual reduced value.
   public static func reduce<Result>(
     into initialResult: Result,
     _ futures: [Future<Value>],
@@ -751,8 +810,25 @@ extension Future {
 // MARK: hop
 
 extension Future {
+  /// Returns a new `Future<Value>` that completes when this future completes
+  /// with the same results, but executes all of its callbacks on the `target`
+  /// queue.
+  ///
+  /// A common use case to want to `hop` between the dispatch queues would be
+  /// synchronization of the future passed as an argument. For example:
+  ///
+  ///     func doSomethingWithFuture(_ future: Future<Value>) {
+  ///       let f1 = future.hop(to: queue)
+  ///       f1.whenSuccess { doAction($0) }
+  ///     }
+  ///
+  /// - parameters:
+  ///   - target: The `DispatchQueue` that the returned `Future<Value>` will be
+  ///     tied to.
+  /// - returns: A new future, that will receive an eventual value, which
+  ///   callbacks will run on the `target` queue.
   public func hop(to target: DispatchQueue) -> Future<Value> {
-    if target === queue {
+    guard target !== queue else {
       // We are already on the target dispatch queue
       return self
     }
