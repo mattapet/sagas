@@ -13,8 +13,11 @@ public enum SagaState {
 }
 
 public protocol CompensableSaga: AnySaga
-  where StepType == CompensableStep, State == SagaState
+  where StepType == CompensableStep
 {
+  var state: SagaState { get }
+  var payload: Data? { get }
+  
   func started(payload: Data?) -> Self
   func aborted() -> Self
   func completed() -> Self

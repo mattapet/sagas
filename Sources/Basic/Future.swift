@@ -655,78 +655,6 @@ extension Future {
   }
 }
 
-// MARK: - reduce
-
-extension Future {
-  /// Returns a new `Future<Result>` that completes when all of the futures
-  /// complete folding the `initialResult` over all results of `futures`.
-  ///
-  /// This function is equivalent to `Sequence.reduce()`, requireing copies of
-  /// the partial result being made. If this is of consern to you, consider
-  /// using `reduce<Result>(into:).
-  ///
-  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
-  ///
-  /// - parameters:
-  ///   - initialResult: The value to use as the initial accumulating value.
-  ///   - futures: List of the futures to reduce.
-  ///   - queue: A `DispatchQueue` to tie the new future to.
-  ///   - nextPartialResult: A closure that combines an accumulating value and
-  ///     an element of the sequence into a new accumulating value.
-  /// - returns: A new `Future<Result>` with an eventual reduced value.
-  public static func reduce<Result>(
-    _ initialResult: Result,
-    _ futures: [Future<Value>],
-    on queue: DispatchQueue,
-    _ nextPartialResult: @escaping (Result, Value) -> Result
-  ) -> Future<Result> {
-    let result = queue.makeSucceededFuture(initialResult)
-    // Fold the result over all of the futures
-    return result.fold(futures) { lhs, rhs in
-      return queue.makeSucceededFuture(nextPartialResult(lhs, rhs))
-    }
-  }
-  
-  /// Returns a new `Future<Result>` that completes when all of the futures
-  /// complete folding the `initialResult` over all results of `futures`.
-  ///
-  /// This function is equivalent to `Sequence.reduce(into:)`, which does not
-  /// make copies of the result type for each `Future`.
-  ///
-  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
-  ///
-  /// - parameters:
-  ///   - initialResult: The value to use as the initial accumulating value.
-  ///   - futures: List of the futures to reduce.
-  ///   - queue: A `DispatchQueue` to tie the new future to.
-  ///   - nextPartialResult: A closure that updates the accumulating value with
-  ///     a result of the next `Future<Value>` in the `futures` array.
-  /// - returns: A new `Future<Result>` with an eventual reduced value.
-  public static func reduce<Result>(
-    into initialResult: Result,
-    _ futures: [Future<Value>],
-    on queue: DispatchQueue,
-    _ updateAccumulatingValue: @escaping (inout Result, Value) -> Void
-  ) -> Future<Result> {
-    let promise = queue.makePromise(of: Result.self)
-    var accumulator = initialResult
-    
-    // Use an empty future as a iterator for folding
-    let f0 = queue.makeSucceededFuture(())
-    // Fold over all of the futures updating the accumulator
-    let future = f0.fold(futures) { _, nextValue in
-      updateAccumulatingValue(&accumulator, nextValue)
-      // Return another empty future, as if we returned plain Void
-      return queue.makeSucceededFuture(())
-    }
-    // Complete successfully with accumulator upon completion of the fold
-    future.whenSuccess { promise.success(accumulator) }
-    // Fail with an error if an error is encountered during the fold
-    future.whenFail { promise.fail($0) }
-    return promise.future
-  }
-}
-
 // MARK: cascade
 
 extension Future {
@@ -835,5 +763,181 @@ extension Future {
     let promise = target.makePromise(of: Value.self)
     cascade(to: promise)
     return promise.future
+  }
+}
+
+// MARK: - reduce, fail fast
+
+extension Future {
+  /// Returns a new `Future<Result>` that completes when all of the futures
+  /// complete folding the `initialResult` over all results of `futures`.
+  ///
+  /// This function is equivalent to `Sequence.reduce()`, requireing copies of
+  /// the partial result being made. If this is of consern to you, consider
+  /// using `reduce<Result>(into:).
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - initialResult: The value to use as the initial accumulating value.
+  ///   - futures: List of the futures to reduce.
+  ///   - queue: A `DispatchQueue` to tie the new future to.
+  ///   - nextPartialResult: A closure that combines an accumulating value and
+  ///     an element of the sequence into a new accumulating value.
+  /// - returns: A new `Future<Result>` with an eventual reduced value.
+  public static func reduce<Result>(
+    _ initialResult: Result,
+    _ futures: [Future<Value>],
+    on queue: DispatchQueue,
+    _ nextPartialResult: @escaping (Result, Value) -> Result
+  ) -> Future<Result> {
+    let result = queue.makeSucceededFuture(initialResult)
+    // Fold the result over all of the futures
+    return result.fold(futures) { lhs, rhs in
+      return queue.makeSucceededFuture(nextPartialResult(lhs, rhs))
+    }
+  }
+  
+  /// Returns a new `Future<Result>` that completes when all of the futures
+  /// complete folding the `initialResult` over all results of `futures`.
+  ///
+  /// This function is equivalent to `Sequence.reduce(into:)`, which does not
+  /// make copies of the result type for each `Future`.
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - initialResult: The value to use as the initial accumulating value.
+  ///   - futures: List of the futures to reduce.
+  ///   - queue: A `DispatchQueue` to tie the new future to.
+  ///   - nextPartialResult: A closure that updates the accumulating value with
+  ///     a result of the next `Future<Value>` in the `futures` array.
+  /// - returns: A new `Future<Result>` with an eventual reduced value.
+  public static func reduce<Result>(
+    into initialResult: Result,
+    _ futures: [Future<Value>],
+    on queue: DispatchQueue,
+    _ updateAccumulatingValue: @escaping (inout Result, Value) -> Void
+  ) -> Future<Result> {
+    let promise = queue.makePromise(of: Result.self)
+    var accumulator = initialResult
+    
+    // Use an empty future as a iterator for folding
+    let f0 = queue.makeSucceededFuture(())
+    // Fold over all of the futures updating the accumulator
+    let future = f0.fold(futures) { _, nextValue in
+      updateAccumulatingValue(&accumulator, nextValue)
+      // Return another empty future, as if we returned plain Void
+      return queue.makeSucceededFuture(())
+    }
+    // Complete successfully with accumulator upon completion of the fold
+    future.whenSuccess { promise.success(accumulator) }
+    // Fail with an error if an error is encountered during the fold
+    future.whenFail { promise.fail($0) }
+    return promise.future
+  }
+  
+  /// Returns a new `Future<Value>` that succeeds only if all of the provided
+  /// futures succeed.
+  ///
+  /// The new `Future<Value>` will contain all of the values resolved by the
+  /// futures in the same order, the futures were passed in.
+  ///
+  /// The returned `Future<Value>` will fail as soon as a fail is encountered.
+  ///
+  /// - parameters:
+  ///   - futures: An array of `Future<Value>`s to wait on for resolved values.
+  ///   - queue: The `DispatchQueue` to which the new `Future` will be tied.
+  /// - returns: A new `Future<Value>` with all the resolved results of the
+  ///   provided futures.
+  public static func whenAllSucceed(
+    _ futures: [Future<Value>],
+    on queue: DispatchQueue
+  ) -> Future<[Value]> {
+    let promise = queue.makePromise(of: Void.self)
+    // An array of eventual values
+    var results: [Value?] = .init(repeating: nil, count: futures.count)
+    // Number of remaining futures
+    var remaining = futures.count
+    
+    // Handles `value` being resolved by the `index`th future
+    func completion(_ index: Int, _ value: Value) {
+      // Assign the value
+      results[index] = value
+      remaining -= 1
+      guard remaining == 0 else { return }
+      // Succeed the the returned future iff all of the futures completed
+      promise.success(())
+    }
+    
+    for (index, future) in futures.enumerated() {
+      // Ensure we hop to the the given `queue` first
+      future.hop(to: queue).whenComplete { result in
+        switch result {
+        case .success(let value):
+          completion(index, value)
+        // When first fialure encountered, fail the promise
+        case .failure(let error) where !promise.future.isComplete:
+          promise.fail(error)
+        // Ignore all subsequent failures
+        case .failure:
+          break
+        }
+      }
+    }
+    
+    return promise.future.map {
+      assert(results.allSatisfy { $0 != nil })
+      return results.map { $0! }
+    }
+  }
+}
+
+// MARK: - Completion all
+
+extension Future {
+  /// Returns a new `Future` that succeeds when all of the provided `Future`s
+  /// complete. The new `Future` will contain an array of results, maintaining
+  /// ordering for each of the `Future`s.
+  ///
+  /// The returned `Future` always succeeds, regardless of any failures from the
+  /// waiting futures.
+  ///
+  /// - parameters:
+  ///   - futures: An array of `Future<Value>`s to gather results from.
+  ///   - queue: The `DispatchQueue` to which the new `Future` will be tied.
+  /// - returns: A new `Future` with all the results of the provided futures.
+  public static func whenAllComplete(
+    _ futures: [Future<Value>],
+    on queue: DispatchQueue
+  ) -> Future<[Result<Value, Error>]> {
+    let promise = queue.makePromise(of: Void.self)
+    // An array of the evnetial result values
+    var results: [Result<Value, Error>?] =
+      .init(repeating: nil, count: futures.count)
+    // Number of remaining futures
+    var remaining = futures.count
+    
+    // Handles `result` of `index`th future
+    func completion(_ index: Int, _ result: Result<Value, Error>) {
+      // Assign the result
+      results[index] = result
+      remaining -= 1
+      guard remaining == 0 else { return }
+      // Succeed the the returned future iff all of the futures completed
+      promise.success(())
+    }
+    
+    for (index, future) in futures.enumerated() {
+      // Ensure we hop to the the given `queue` first
+      future.hop(to: queue).whenComplete { result in
+        completion(index, result)
+      }
+    }
+    
+    return promise.future.map { _ in
+      assert(results.allSatisfy { $0 != nil })
+      return results.map { $0! }
+    }
   }
 }

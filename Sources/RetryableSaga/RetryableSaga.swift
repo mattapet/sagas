@@ -13,8 +13,11 @@ public enum SagaState {
 }
 
 public protocol RetryableSaga: AnySaga
-  where StepType == RetryableStep, State == SagaState
+  where StepType == RetryableStep
 {
+  var state: SagaState { get }
+  var payload: Data? { get }
+  
   func started(payload: Data?) -> Self
   func completed() -> Self
 }
@@ -60,4 +63,3 @@ extension RetryableSaga {
     return try initial.flatMap(stepsToStart)
   }
 }
-

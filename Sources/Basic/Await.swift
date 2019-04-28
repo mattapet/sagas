@@ -7,6 +7,15 @@
 
 import Dispatch
 
+/// Converts an asynchronous method having callback using `Result` enum to
+/// synchronous.
+///
+/// - parameters:
+///   - body: The async function must be called inside this body and closure
+///     provided in the parameter should be passed to the async method's
+///     completion handler.
+/// - returns: The value wrapped by the async method's result.
+/// - throws: The error wrapped by the async method's result.
 @discardableResult
 public func await<ResultType, ErrorType>(
   _ body: (@escaping (Result<ResultType, ErrorType>) -> Void) -> Void
