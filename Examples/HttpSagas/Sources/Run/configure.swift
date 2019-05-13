@@ -29,7 +29,7 @@ public func configure(
   services.register(middlewares)
   
   // Configure a SQLite database
-  let sqlite = try SQLiteDatabase(storage: .memory)
+  let sqlite = try SQLiteDatabase(storage: .file(path: "test.db"))
   
   /// Register the configured SQLite database to the database config.
   var databases = DatabasesConfig()
